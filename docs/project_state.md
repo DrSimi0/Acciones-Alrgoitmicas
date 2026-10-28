@@ -31,14 +31,15 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
 | **Módulo 4: Generación de Señales** (`signals.py`) | ✅ Completado | ✅ `tests/test_signals.py` (5/5 pasadas) |
 | **Módulo 5: Backtest & Métricas** (`backtest.py`, `metrics.py`) | ✅ Completado | ✅ `tests/test_backtest.py` (5/5 pasadas) |
 | **Pipeline Integrado & Runner** (`pipeline.py`, `run_pipeline.py`) | ✅ Completado | ✅ Simulación Walk-Forward (5 ventanas) |
+| **Prueba en Universo Real (7 Activos)** (`run_pipeline.py`, `yfinance`) | ✅ Completado | ✅ 15 Ventanas Walk-Forward (2021-2025) |
 
-**Total Suite de Pruebas Unitarias:** 25/25 pruebas pasadas (100% éxito).
+**Total Suite de Pruebas Unitarias:** 28/28 pruebas pasadas (100% éxito).
 
 ---
 
-## 4. Resultados de la Simulación Walk-Forward
-Ejecutada sobre 5 ventanas móviles (252 barras formación / 63 barras negociación fuera de muestra):
-- Reducción combinatoria de 45 pares a Top-10 candidatos por SSD.
-- Filtrado econométrico efectivo: solo 1 a 2 pares superan simultáneamente Cointegración, Half-Life viable y control de FDR Benjamini-Hochberg.
-- Resultados fuera de muestra realistas: alternancia de ventanas con rendimiento positivo y ventanas con drawdowns/stops, evidenciando el impacto de la fricción y la no estacionariedad sin sobreajuste.
-- Reportes consolidados exportados a `results/walk_forward_summary.csv` y `results/walk_forward_raw.json`.
+## 4. Resultados de la Prueba en Universo Real (2021-2025)
+Ejecutada con `yfinance` sobre `["NVDA", "AAPL", "SBUX", "JPM", "JNJ", "XOM", "SPY"]`:
+- **Ventanas procesadas:** 15 ventanas Walk-Forward (252 barras In-Sample / 63 barras Out-of-Sample).
+- **Filtro SSD:** Preseleccionó entre 3 y 10 candidatos por ventana con correlaciones altas ($r > 0.85$).
+- **Filtro Econométrico Riguroso (Engle-Granger + Johansen + FDR):** **Rechazó el 100% de los pares** en todas las 15 ventanas ($p > 0.05$).
+- **Conclusión Empírica Clave:** La alta correlación no implica cointegración. Entre 2021 y 2025, la divergencia secular de múltiplos (ej. rally de IA en NVDA frente al sector defensivo o financiero) generó spreads no estacionarios $I(1)$. El motor protegió el capital al **no forzar operaciones espurias sin reversión a la media garantizada**.
