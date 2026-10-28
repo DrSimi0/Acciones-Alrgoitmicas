@@ -1,7 +1,16 @@
 """
-Script ejecutable para correr la simulación Walk-Forward completa (run_pipeline.py).
-Genera universo de prueba, ejecuta el embudo (SSD -> Cointegración -> OU -> FDR -> Kalman -> Backtest)
-y exporta los reportes a results/.
+Script Central Coordinador — Pipeline de Integración Real (run_pipeline.py).
+
+Ejecuta el sistema cuantitativo completo de Pairs Trading sobre un universo real
+de 7 activos (NVDA, AAPL, SBUX, JPM, JNJ, XOM, SPY) utilizando yfinance:
+- Ingesta y limpieza point-in-time (EquityDataLoader)
+- Partición Walk-Forward sin look-ahead (WalkForwardSplitter)
+- Preselección SSD sobre log-precios estandarizados (DistancePreselector)
+- Validación econométrica rigurosa (EconometricValidator: EG + Johansen + OU + FDR)
+- Hedge ratio dinámico y detección de ruptura (KalmanSpreadTracker)
+- Señales con bandas elásticas GARCH/EWMA (SignalGenerator)
+- Backtest realista t+1 con Hard Stop-Loss (-8%) y costos de préstamo (WalkForwardBacktester + RiskManager)
+- Reporte detallado a consola y exportación a results/walk_forward_real_universe.csv
 """
 
 import os
@@ -9,109 +18,245 @@ import json
 import pandas as pd
 import numpy as np
 
-from src.data import SyntheticMarketDataGenerator
-from src.pipeline import PairsTradingPipeline
+from src.data import EquityDataLoader
+from src.universe import WalkForwardSplitter
+from src.selection import DistancePreselector
+from src.spread import EconometricValidator, KalmanSpreadTracker
+from src.signals import SignalGenerator
+from src.backtest import WalkForwardBacktester, MarketImpactModel, RiskManager
+from src.metrics import PerformanceEvaluator
 
 
 def main():
-    print("=" * 70)
-    print("INICIANDO SIMULACIÓN WALK-FORWARD DE PAIRS TRADING (SISTEMA MODULAR)")
-    print("=" * 70)
+    print("=" * 78)
+    print("SISTEMA CUANTITATIVO DE PAIRS TRADING — BACKTEST SOBRE UNIVERSO REAL")
+    print("=" * 78)
 
     os.makedirs("results", exist_ok=True)
 
-    # 1. Generación de Universo Sintético Controlado (600 barras diarias)
-    # Incluye:
-    # - Par 1 Cointegrado: PAIR_A1 y PAIR_A2 (beta=1.5, kappa=0.15)
-    # - Par 2 Cointegrado: PAIR_B1 y PAIR_B2 (beta=0.8, kappa=0.20)
-    # - 6 Acciones de Paseo Aleatorio Puro no cointegradas
-    print("\n[1/4] Generando universo de prueba point-in-time (10 activos, 600 barras)...")
-    y1, x1 = SyntheticMarketDataGenerator.generate_cointegrated_pair(n_bars=600, beta=1.5, ou_kappa=0.15, seed=10)
-    y2, x2 = SyntheticMarketDataGenerator.generate_cointegrated_pair(n_bars=600, beta=0.8, ou_kappa=0.20, seed=20)
-    random_stocks = SyntheticMarketDataGenerator.generate_random_walks(n_assets=6, n_bars=600, seed=30)
+    # 1. Ingesta de Datos con EquityDataLoader
+    real_tickers = ["NVDA", "AAPL", "SBUX", "JPM", "JNJ", "XOM", "SPY"]
+    start_date = "2021-01-01"
+    end_date = "2025-12-31"
 
-    prices_df = pd.concat([
-        pd.Series(y1, name="PAIR_A1"),
-        pd.Series(x1, name="PAIR_A2"),
-        pd.Series(y2, name="PAIR_B1"),
-        pd.Series(x2, name="PAIR_B2"),
-        random_stocks
-    ], axis=1)
+    print(f"\n[1/5] Descargando precios reales vía yfinance ({len(real_tickers)} activos)...")
+    print(f"      Activos: {', '.join(real_tickers)}")
+    print(f"      Periodo: {start_date} a {end_date}")
 
-    print(f"Dimensiones del universo: {prices_df.shape[0]} barras x {prices_df.shape[1]} activos.")
-    print(f"Total de pares combinatorios posibles: {int(prices_df.shape[1] * (prices_df.shape[1] - 1) / 2)}")
+    prices_df = EquityDataLoader.load_historical_prices(
+        tickers=real_tickers,
+        start_date=start_date,
+        end_date=end_date
+    )
 
-    # 2. Inicialización del Pipeline Cuantitativo
-    print("\n[2/4] Inicializando Pipeline Cuantitativo...")
-    pipeline = PairsTradingPipeline(
-        top_n_ssd=10,
-        coint_pvalue=0.05,
+    n_bars, n_assets = prices_df.shape
+    total_combinations = int(n_assets * (n_assets - 1) / 2)
+    print(f"      Descarga completada: {n_bars} barras diarias sincronizadas.")
+    print(f"      Pares combinatorios posibles por ventana: {total_combinations}")
+
+    # 2. Partición temporal Walk-Forward (252 barras In-Sample, 63 barras Out-of-Sample)
+    formation_bars = 252
+    trading_bars = 63
+    step_bars = 63
+
+    print(f"\n[2/5] Particionando historial con WalkForwardSplitter...")
+    print(f"      Ventana de formación (In-Sample): {formation_bars} barras (~1 año)")
+    print(f"      Ventana de negociación (Out-of-Sample): {trading_bars} barras (~1 trimestre)")
+
+    splits = WalkForwardSplitter.split(
+        data=prices_df,
+        formation_bars=formation_bars,
+        trading_bars=trading_bars,
+        step_bars=step_bars
+    )
+    print(f"      Total de ventanas Walk-Forward generadas: {len(splits)}")
+
+    # 3. Inicialización de Componentes de Riesgo y Econométricos
+    preselector = DistancePreselector(top_n_pairs=10)
+    validator = EconometricValidator(
+        coint_pvalue_threshold=0.05,
         min_half_life=2.0,
         max_half_life=40.0,
-        fdr_alpha=0.05,
+        fdr_alpha=0.05
+    )
+    signal_gen = SignalGenerator(
         base_entry_z=2.0,
         exit_z=0.5,
-        elastic_garch=True,
-        initial_capital=100_000.0,
-        short_borrow_rate=0.02,
+        elastic_volatility=True
+    )
+    impact_model = MarketImpactModel(
         commission_bps=1.5,
-        bid_ask_bps=3.0
+        bid_ask_spread_bps=3.0,
+        impact_parameter=0.05,
+        short_borrow_rate_annual=0.02
+    )
+    risk_manager = RiskManager(max_loss_pct=-0.08)  # Hard Stop-Loss del 8%
+    backtester = WalkForwardBacktester(
+        initial_capital=100_000.0,
+        impact_model=impact_model,
+        risk_manager=risk_manager,
+        max_leverage=1.0
     )
 
-    # 3. Ejecución Walk-Forward (Formación: 252 barras, Trading OOS: 63 barras)
-    print("\n[3/4] Ejecutando Walk-Forward (252 barras In-Sample / 63 barras Out-of-Sample)...")
-    wf_results = pipeline.run_walk_forward(
-        prices_df=prices_df,
-        formation_bars=252,
-        trading_bars=63,
-        step_bars=63
-    )
-
-    print(f"\nVentanas Walk-Forward procesadas: {wf_results['num_windows']}")
+    # 4. Ejecución del Funnel Ventana por Ventana
+    print("\n[3/5] Ejecutando Funnel Cuantitativo (SSD -> Econometría -> Kalman -> Riesgo)...")
     summary_records = []
+    window_logs = []
 
-    for w in wf_results["windows"]:
-        print(f"\n--- Ventana {w['window']} ---")
-        print(f"  Formación: {w['formation_start'].strftime('%Y-%m-%d')} a {w['formation_end'].strftime('%Y-%m-%d')}")
-        print(f"  Negociación (OOS): {w['trading_start'].strftime('%Y-%m-%d')} a {w['trading_end'].strftime('%Y-%m-%d')}")
-        print(f"  Candidatos preseleccionados por SSD: {w['candidates_ssd_count']}")
-        print(f"  Pares validados (Cointegración + OU + FDR): {w['validated_pairs_count']}")
+    for w_idx, (df_formation, df_trading) in enumerate(splits):
+        f_start = df_formation.index[0].strftime("%Y-%m-%d")
+        f_end = df_formation.index[-1].strftime("%Y-%m-%d")
+        t_start = df_trading.index[0].strftime("%Y-%m-%d")
+        t_end = df_trading.index[-1].strftime("%Y-%m-%d")
 
-        for trade_info in w["traded_pairs"]:
-            pair_name = trade_info["pair"]
-            m = trade_info["metrics"]
-            trades = trade_info["num_trades"]
-            print(f"    * Operado: {pair_name} | Trades: {trades} | Retorno Neto: {m.get('total_net_return', 0):.2%} | Sharpe: {m.get('sharpe_ratio', 0):.2f} | Max DD: {m.get('max_drawdown', 0):.2%}")
+        print(f"\n>>> VENTANA {w_idx + 1}/{len(splits)} <<<")
+        print(f"    Formación (IS) : {f_start} -> {f_end} ({len(df_formation)} barras)")
+        print(f"    Trading (OOS)  : {t_start} -> {t_end} ({len(df_trading)} barras)")
 
-            summary_records.append({
-                "window": w["window"],
-                "pair": pair_name,
-                "trades": trades,
-                "net_return": m.get("total_net_return", 0),
-                "gross_return": m.get("total_gross_return", 0),
-                "friction_drag": m.get("friction_drag", 0),
-                "sharpe": m.get("sharpe_ratio", 0),
-                "max_drawdown": m.get("max_drawdown", 0),
-                "win_rate": m.get("win_rate", 0),
-                "profit_factor": m.get("profit_factor", 0)
-            })
+        # Paso 1: Preselección por Diferencia SSD en log-precios estandarizados
+        candidates_df = preselector.select_top_candidates(df_formation)
+        candidate_pairs = [
+            (row["asset_a"], row["asset_b"]) for _, row in candidates_df.iterrows()
+        ]
+        print(f"    [Funnel 1] Pares preseleccionados por SSD: {len(candidate_pairs)} de {total_combinations}")
 
-    # 4. Exportación de Resultados
-    print("\n[4/4] Exportando reportes a results/walk_forward_summary.csv...")
+        # Paso 2: Validación Econométrica Rigurosa (Cointegración + OU Half-Life + FDR)
+        validated_df = validator.validate_candidate_pairs(df_formation, candidate_pairs)
+        approved_pairs = validated_df[validated_df["is_valid_pair"]] if not validated_df.empty else pd.DataFrame()
+        n_approved = len(approved_pairs)
+        print(f"    [Funnel 2] Pares validados (Cointegración + Half-Life + FDR): {n_approved}")
+
+        w_record = {
+            "window": w_idx,
+            "formation_start": f_start,
+            "formation_end": f_end,
+            "trading_start": t_start,
+            "trading_end": t_end,
+            "ssd_candidates": len(candidate_pairs),
+            "validated_pairs": n_approved,
+            "trades": []
+        }
+
+        if approved_pairs.empty:
+            print("    [Info] Ningún par superó los criterios econométricos en esta ventana. No se opera.")
+        else:
+            for _, pair_row in approved_pairs.iterrows():
+                a = pair_row["asset_a"]
+                b = pair_row["asset_b"]
+                hl = pair_row["half_life"]
+                coint_p = pair_row["p_value"]
+
+                p_a_oos = df_trading[a]
+                p_b_oos = df_trading[b]
+
+                # Filtro de Kalman secuencial con detección de ruptura
+                kalman = KalmanSpreadTracker(breakdown_threshold=5.0)
+                kalman_df = kalman.filter_series(p_a_oos, p_b_oos)
+
+                # Z-Score y volatilidad condicional GARCH/EWMA
+                z_score = signal_gen.compute_zscore(kalman_df["spread"], rolling_window=min(30, len(kalman_df)))
+                cond_vol = signal_gen.garch_estimator.estimate_volatility(kalman_df["spread"])
+
+                # Correlación móvil
+                ret_a = p_a_oos.pct_change()
+                ret_b = p_b_oos.pct_change()
+                roll_corr = ret_a.rolling(20, min_periods=5).corr(ret_b).fillna(1.0)
+
+                # Generación de Señales adaptativas con flag de ruptura Kalman
+                signals_df = signal_gen.generate_signals(
+                    spread=kalman_df["spread"],
+                    z_score=z_score,
+                    half_life=hl,
+                    rolling_correlation=roll_corr,
+                    conditional_vol=cond_vol,
+                    kalman_breakdown=kalman_df["is_broken"]
+                )
+
+                # Simulación de trading OOS con RiskManager (Hard Stop-Loss -8%)
+                history_df, trades_df = backtester.simulate_pair(
+                    prices_a=p_a_oos,
+                    prices_b=p_b_oos,
+                    signals=signals_df["position"],
+                    hedge_ratio=kalman_df["beta"]
+                )
+
+                # Evaluación de Métricas con PerformanceEvaluator
+                metrics = PerformanceEvaluator.calculate_metrics(
+                    equity_curve=history_df["net_equity"],
+                    gross_equity_curve=history_df["gross_equity"],
+                    trades_df=trades_df
+                )
+
+                pair_name = f"{a}_{b}"
+                n_trades = len(trades_df)
+                ret_net = metrics.get("total_net_return", 0.0)
+                sharpe = metrics.get("sharpe_ratio", 0.0)
+                max_dd = metrics.get("max_drawdown", 0.0)
+                win_rate = metrics.get("win_rate", 0.0)
+                p_factor = metrics.get("profit_factor", 0.0)
+
+                print(f"      * Par: {pair_name:<10} | p-val: {coint_p:.4f} | HL: {hl:.1f}d | Trades: {n_trades} | Ret Neto: {ret_net:>7.2%} | Sharpe: {sharpe:>5.2f} | MaxDD: {max_dd:>7.2%}")
+
+                # Log de trades individuales si los hubo
+                if not trades_df.empty:
+                    for _, tr in trades_df.iterrows():
+                        d_in = str(tr["entry_date"])[:10]
+                        d_out = str(tr["exit_date"])[:10]
+                        dr = tr["direction"]
+                        pnl = float(tr.get("pnl_net", 0.0))
+                        reason = tr.get("exit_reason", "none")
+                        print(f"        -> Trade: {dr} | {d_in} a {d_out} | PnL: ${pnl:>9.2f} | Salida: {reason}")
+
+                summary_records.append({
+                    "window": w_idx,
+                    "pair": pair_name,
+                    "coint_pvalue": coint_p,
+                    "half_life": hl,
+                    "trades": n_trades,
+                    "net_return": ret_net,
+                    "gross_return": metrics.get("total_gross_return", 0.0),
+                    "friction_drag": metrics.get("friction_drag", 0.0),
+                    "sharpe": sharpe,
+                    "max_drawdown": max_dd,
+                    "win_rate": win_rate,
+                    "profit_factor": p_factor,
+                    "expectancy": metrics.get("expectancy_per_trade", 0.0)
+                })
+
+        window_logs.append(w_record)
+
+    # 5. Exportación y Resumen Consolidado
+    print("\n[4/5] Exportando resultados consolidados...")
+    output_csv = "results/walk_forward_real_universe.csv"
+    output_json = "results/walk_forward_real_universe.json"
+
     if summary_records:
         df_summary = pd.DataFrame(summary_records)
-        df_summary.to_csv("results/walk_forward_summary.csv", index=False)
-        print("Reporte CSV guardado exitosamente.")
+        df_summary.to_csv(output_csv, index=False)
+        print(f"      Archivo CSV generado exitosamente: {output_csv}")
     else:
-        print("No se registraron pares validados que generaran operaciones.")
+        print("      No se generaron trades en el universo durante el periodo analizado.")
+        pd.DataFrame().to_csv(output_csv, index=False)
 
-    with open("results/walk_forward_raw.json", "w") as f:
-        # Serialización de fechas
-        json.dump(wf_results, f, default=str, indent=2)
-    print("Reporte JSON detallado guardado.")
-    print("\n" + "=" * 70)
-    print("SIMULACIÓN WALK-FORWARD FINALIZADA CON ÉXITO")
-    print("=" * 70)
+    with open(output_json, "w") as f:
+        json.dump(window_logs, f, indent=2)
+    print(f"      Archivo JSON detallado: {output_json}")
+
+    print("\n[5/5] Resumen Global del Backtest Real:")
+    if summary_records:
+        df_sum = pd.DataFrame(summary_records)
+        total_trades = df_sum["trades"].sum()
+        avg_sharpe = df_sum["sharpe"].mean()
+        avg_ret = df_sum["net_return"].mean()
+        max_dd_overall = df_sum["max_drawdown"].min()
+        print(f"      Total operaciones ejecutadas OOS : {total_trades}")
+        print(f"      Retorno Neto promedio por ventana: {avg_ret:.2%}")
+        print(f"      Sharpe promedio OOS              : {avg_sharpe:.2f}")
+        print(f"      Peor Drawdown registrado         : {max_dd_overall:.2%}")
+
+    print("\n" + "=" * 78)
+    print("BACKTEST REAL FINALIZADO CON ÉXITO")
+    print("=" * 78)
 
 
 if __name__ == "__main__":

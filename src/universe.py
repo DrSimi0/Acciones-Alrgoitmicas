@@ -109,3 +109,26 @@ class UniverseManager:
             start_idx += step_bars
 
         return splits
+
+
+class WalkForwardSplitter:
+    """
+    Particionador temporal para análisis Walk-Forward estricto sin look-ahead bias.
+    """
+
+    @staticmethod
+    def split(
+        data: pd.DataFrame,
+        formation_bars: int = 252,
+        trading_bars: int = 63,
+        step_bars: Optional[int] = None
+    ) -> List[Tuple[pd.DataFrame, pd.DataFrame]]:
+        """
+        Divide la serie histórica en ventanas rodantes cronológicas de formación y negociación.
+        """
+        return UniverseManager.get_walk_forward_splits(
+            data=data,
+            formation_bars=formation_bars,
+            trading_bars=trading_bars,
+            step_bars=step_bars
+        )

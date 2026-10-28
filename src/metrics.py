@@ -131,3 +131,7 @@ class PerformanceMetrics:
             "win_loss_ratio": float(win_loss_ratio),
             "expectancy_per_trade": float(expectancy)
         }
+
+
+# Alias para consistencia
+PerformanceEvaluator = PerformanceMetrics

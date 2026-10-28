@@ -209,3 +209,58 @@ class SyntheticMarketDataGenerator:
             data[f"STOCK_{i:02d}"] = 50.0 + np.cumsum(innovations)
 
         return pd.DataFrame(data, index=dates)
+
+
+class EquityDataLoader:
+    """
+    Carga y procesa datos históricos de acciones de mercado reales mediante yfinance,
+    garantizando que las series estén sincronizadas y libres de look-ahead bias.
+    """
+
+    @staticmethod
+    def load_historical_prices(
+        tickers: List[str],
+        start_date: str = "2021-01-01",
+        end_date: str = "2025-12-31"
+    ) -> pd.DataFrame:
+        """
+        Descarga precios de cierre ajustados (Close / Adj Close) para la lista de tickers.
+
+        Args:
+            tickers: Lista de símbolos de acciones.
+            start_date: Fecha inicial ISO (YYYY-MM-DD).
+            end_date: Fecha final ISO (YYYY-MM-DD).
+
+        Returns:
+            pd.DataFrame sincronizado con precios de cierre ajustados.
+        """
+        import yfinance as yf
+
+        data = yf.download(
+            tickers=tickers,
+            start=start_date,
+            end=end_date,
+            auto_adjust=True,
+            progress=False
+        )
+
+        if data.empty:
+            raise ValueError(f"No se pudieron descargar datos para los tickers: {tickers}")
+
+        if isinstance(data.columns, pd.MultiIndex):
+            if "Close" in data.columns.levels[0]:
+                prices = data["Close"].copy()
+            else:
+                prices = data.iloc[:, :len(tickers)].copy()
+                prices.columns = tickers
+        else:
+            prices = data[["Close"]].copy() if "Close" in data.columns else data.copy()
+            if len(tickers) == 1:
+                prices.columns = tickers
+
+        # Limpiar zona horaria para compatibilidad uniforme
+        prices.index = pd.to_datetime(prices.index).tz_localize(None)
+        # Relleno hacia adelante limitado y eliminación de NaNs residuales
+        prices = prices.ffill().dropna()
+
+        return prices
