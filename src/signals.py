@@ -165,7 +165,8 @@ class SignalGenerator:
         z_score: pd.Series,
         half_life: float,
         rolling_correlation: pd.Series,
-        conditional_vol: Optional[pd.Series] = None
+        conditional_vol: Optional[pd.Series] = None,
+        kalman_breakdown: Optional[pd.Series] = None
     ) -> pd.DataFrame:
         """
         Genera la serie temporal de estados de posición con prevención de look-ahead bias:
@@ -179,6 +180,7 @@ class SignalGenerator:
             half_life: Vida media estimada en el periodo in-sample.
             rolling_correlation: Correlación móvil contemporánea entre los dos activos.
             conditional_vol: Serie opcional de volatilidad condicional estimada.
+            kalman_breakdown: Serie booleana opcional de ruptura estructural del Filtro de Kalman.
 
         Returns:
             pd.DataFrame con ['position', 'entry_threshold', 'exit_reason', 'bars_in_trade'].
@@ -206,37 +208,45 @@ class SignalGenerator:
 
         z_vals = z_score.values
         corr_vals = rolling_correlation.reindex(dates).fillna(1.0).values
+        broken_vals = kalman_breakdown.reindex(dates).fillna(False).values if kalman_breakdown is not None else np.zeros(n, dtype=bool)
 
         for t in range(n):
             z_t = z_vals[t]
             corr_t = corr_vals[t]
+            is_broken_t = bool(broken_vals[t])
             threshold_t = entry_thresholds[t]
             reason = "none"
 
             if current_pos != 0:
                 current_bars += 1
 
-                # 1. Stop por fractura de correlación estructural
-                if corr_t < self.min_correlation_threshold:
+                # 1. Stop por ruptura estructural detectada por incertidumbre Kalman
+                if is_broken_t:
+                    current_pos = 0
+                    current_bars = 0
+                    reason = "stop_kalman_breakdown"
+
+                # 2. Stop por fractura de correlación estructural
+                elif corr_t < self.min_correlation_threshold:
                     current_pos = 0
                     current_bars = 0
                     reason = "stop_structural_break"
 
-                # 2. Stop por tiempo máximo en posición (timeout de Half-Life)
+                # 3. Stop por tiempo máximo en posición (timeout de Half-Life)
                 elif current_bars >= max_bars_allowed:
                     current_pos = 0
                     current_bars = 0
                     reason = "stop_half_life"
 
-                # 3. Salida por convergencia a la media
+                # 4. Salida por convergencia a la media
                 elif (current_pos == 1 and z_t >= -self.exit_z) or (current_pos == -1 and z_t <= self.exit_z):
                     current_pos = 0
                     current_bars = 0
                     reason = "convergence"
 
             else:
-                # Regla de Apertura (solo si la correlación estructural se mantiene)
-                if corr_t >= self.min_correlation_threshold:
+                # Regla de Apertura (solo si la correlación se mantiene y no hay ruptura Kalman)
+                if not is_broken_t and corr_t >= self.min_correlation_threshold:
                     if z_t <= -threshold_t:
                         current_pos = 1   # Long Spread (infravalorado)
                         current_bars = 1

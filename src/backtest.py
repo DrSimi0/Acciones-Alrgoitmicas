@@ -232,12 +232,20 @@ class WalkForwardBacktester:
 
         trades = []
         current_trade = None
+        cooldown_direction = 0
 
         for t in range(n):
             p_a = price_a_vals[t]
             p_b = price_b_vals[t]
             desired_pos = target_positions[t]
             prev_pos = target_positions[t - 1] if t > 0 else 0
+
+            # Desbloquear cooldown si la señal volvió a neutral (0)
+            if desired_pos == 0:
+                cooldown_direction = 0
+            elif cooldown_direction != 0 and desired_pos == cooldown_direction:
+                # Bloquear re-entrada vengativa en la misma divergencia tras ser parado por stop-loss
+                desired_pos = 0
 
             # 1. Devengo del costo de préstamo de cortos sobre la posición abierta del día anterior
             daily_borrow_cost = 0.0
@@ -265,6 +273,7 @@ class WalkForwardBacktester:
                 )
                 if force_exit:
                     desired_pos = 0  # Forzar liquidación inmediata
+                    cooldown_direction = prev_pos  # Activar cooldown para evitar re-entradas inmediatas
 
             # 3. Rebalanceo / Cambio de posición
             step_costs = 0.0

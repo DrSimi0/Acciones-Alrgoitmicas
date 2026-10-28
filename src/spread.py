@@ -343,6 +343,8 @@ class KalmanSpreadTracker:
 
         # 7. Actualización a posteriori de la covarianza: P = (I - K * H) * P_pred
         self.P = P_pred - np.outer(K, np.dot(H, P_pred))
+        # Garantía de simetría numérica para prevenir derivas de coma flotante
+        self.P = 0.5 * (self.P + self.P.T)
 
         alpha_t: float = float(self.theta[0])
         beta_t: float = float(self.theta[1])

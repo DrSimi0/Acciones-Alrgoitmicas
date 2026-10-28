@@ -19,7 +19,7 @@ from src.universe import UniverseManager
 from src.selection import DistancePreselector
 from src.spread import EconometricValidator, KalmanSpreadTracker
 from src.signals import SignalGenerator
-from src.backtest import WalkForwardBacktester, MarketImpactModel
+from src.backtest import WalkForwardBacktester, MarketImpactModel, RiskManager
 from src.metrics import PerformanceMetrics
 
 
@@ -41,8 +41,11 @@ class PairsTradingPipeline:
         initial_capital: float = 100_000.0,
         short_borrow_rate: float = 0.02,
         commission_bps: float = 1.5,
-        bid_ask_bps: float = 3.0
+        bid_ask_bps: float = 3.0,
+        max_loss_pct: float = -0.08,
+        breakdown_threshold: float = 5.0
     ):
+        self.breakdown_threshold = breakdown_threshold
         self.preselector = DistancePreselector(top_n_pairs=top_n_ssd)
         self.validator = EconometricValidator(
             coint_pvalue_threshold=coint_pvalue,
@@ -60,9 +63,11 @@ class PairsTradingPipeline:
             bid_ask_spread_bps=bid_ask_bps,
             short_borrow_rate_annual=short_borrow_rate
         )
+        self.risk_manager = RiskManager(max_loss_pct=max_loss_pct)
         self.backtester = WalkForwardBacktester(
             initial_capital=initial_capital,
-            impact_model=self.impact_model
+            impact_model=self.impact_model,
+            risk_manager=self.risk_manager
         )
 
     def run_walk_forward(
@@ -126,11 +131,12 @@ class PairsTradingPipeline:
                     p_a_oos = df_trading[a]
                     p_b_oos = df_trading[b]
 
-                    # Filtro de Kalman secuencial en Out-of-Sample
-                    kalman = KalmanSpreadTracker()
+                    # Filtro de Kalman secuencial en Out-of-Sample con umbral de ruptura
+                    kalman = KalmanSpreadTracker(breakdown_threshold=self.breakdown_threshold)
                     kalman_df = kalman.filter_series(p_a_oos, p_b_oos)
                     spread_oos = kalman_df["spread"]
                     beta_oos = kalman_df["beta"]
+                    is_broken_oos = kalman_df["is_broken"]
 
                     # Z-Score y Volatilidad condicional
                     z_oos = self.signal_generator.compute_zscore(spread_oos, rolling_window=min(30, len(spread_oos)))
@@ -141,13 +147,14 @@ class PairsTradingPipeline:
                     ret_b = p_b_oos.pct_change()
                     roll_corr = ret_a.rolling(20, min_periods=5).corr(ret_b).fillna(1.0)
 
-                    # Señales
+                    # Señales con detección de ruptura estructural Kalman
                     signals_df = self.signal_generator.generate_signals(
                         spread=spread_oos,
                         z_score=z_oos,
                         half_life=hl,
                         rolling_correlation=roll_corr,
-                        conditional_vol=garch_vol
+                        conditional_vol=garch_vol,
+                        kalman_breakdown=is_broken_oos
                     )
 
                     # Simulación
