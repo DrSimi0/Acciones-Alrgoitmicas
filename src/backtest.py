@@ -74,6 +74,95 @@ class MarketImpactModel:
         return float(short_notional * (self.short_borrow_rate_annual / 365.25) * days)
 
 
+class RiskManager:
+    """
+    Gestor de riesgo para posiciones abiertas en pares de activos.
+    Monitorea el PnL no realizado paso a paso y emite salidas forzadas
+    (FORCE_EXIT) cuando se vulnera el límite máximo de pérdida por capital.
+    """
+
+    def __init__(self, max_loss_pct: float = -0.08) -> None:
+        """
+        Args:
+            max_loss_pct: Pérdida porcentual máxima tolerada sobre el nocional de entrada.
+                          Debe expresarse como un decimal negativo (ej. -0.08 para -8%).
+        """
+        if max_loss_pct > 0:
+            # Si el usuario suministra un valor positivo como 0.08, convertir a negativo
+            self.max_loss_pct: float = -float(max_loss_pct)
+        else:
+            self.max_loss_pct = float(max_loss_pct)
+
+    def calculate_unrealized_pnl(
+        self,
+        entry_price_a: float,
+        entry_price_b: float,
+        current_price_a: float,
+        current_price_b: float,
+        position_size_a: float,
+        position_size_b: float
+    ) -> tuple[float, float, float]:
+        """
+        Calcula el PnL monetario no realizado, el valor nocional de entrada y la rentabilidad porcentual.
+
+        Returns:
+            Tupla (unrealized_pnl, initial_notional, return_pct):
+                - unrealized_pnl: Ganancia/pérdida flotante en unidades monetarias.
+                - initial_notional: Valor absoluto total invertido/comprometido en la entrada.
+                - return_pct: Retorno porcentual no realizado (unrealized_pnl / initial_notional).
+        """
+        # PnL pata A y pata B
+        pnl_a: float = float(position_size_a * (current_price_a - entry_price_a))
+        pnl_b: float = float(position_size_b * (current_price_b - entry_price_b))
+        unrealized_pnl: float = pnl_a + pnl_b
+
+        # Valor nocional inicial de entrada (exposición total)
+        notional_a: float = abs(float(position_size_a * entry_price_a))
+        notional_b: float = abs(float(position_size_b * entry_price_b))
+        initial_notional: float = notional_a + notional_b
+
+        return_pct: float = (unrealized_pnl / initial_notional) if initial_notional > 1e-9 else 0.0
+        return unrealized_pnl, initial_notional, return_pct
+
+    def check_stop_loss(
+        self,
+        entry_price_a: float,
+        entry_price_b: float,
+        current_price_a: float,
+        current_price_b: float,
+        position_size_a: float,
+        position_size_b: float
+    ) -> bool:
+        """
+        Evalúa si la posición actual ha alcanzado o superado el límite de pérdida máxima.
+
+        Args:
+            entry_price_a: Precio de ejecución de entrada para el activo A.
+            entry_price_b: Precio de ejecución de entrada para el activo B.
+            current_price_a: Precio actual de mercado para el activo A.
+            current_price_b: Precio actual de mercado para el activo B.
+            position_size_a: Número de acciones en A (positivo = largo, negativo = corto).
+            position_size_b: Número de acciones en B (positivo = largo, negativo = corto).
+
+        Returns:
+            bool: True si debe forzarse el cierre inmediato (FORCE_EXIT), False en caso contrario.
+        """
+        if abs(position_size_a) < 1e-9 and abs(position_size_b) < 1e-9:
+            return False
+
+        _, _, return_pct = self.calculate_unrealized_pnl(
+            entry_price_a=entry_price_a,
+            entry_price_b=entry_price_b,
+            current_price_a=current_price_a,
+            current_price_b=current_price_b,
+            position_size_a=position_size_a,
+            position_size_b=position_size_b
+        )
+
+        # Si el retorno porcentual es menor o igual al umbral de pérdida permitida, activar stop
+        return bool(return_pct <= self.max_loss_pct)
+
+
 class WalkForwardBacktester:
     """
     Motor vectorizado de simulación para pares con ejecución en t+1 y descomposición de costos.
@@ -83,16 +172,19 @@ class WalkForwardBacktester:
         self,
         initial_capital: float = 100_000.0,
         impact_model: Optional[MarketImpactModel] = None,
+        risk_manager: Optional[RiskManager] = None,
         max_leverage: float = 1.0
     ):
         """
         Args:
             initial_capital: Capital inicial en divisa base.
             impact_model: Instancia de MarketImpactModel (o valores por defecto si es None).
+            risk_manager: Instancia de RiskManager para evaluar stop-loss por capital.
             max_leverage: Límite de apalancamiento bruto del portafolio.
         """
         self.initial_capital = initial_capital
         self.impact_model = impact_model if impact_model is not None else MarketImpactModel()
+        self.risk_manager = risk_manager
         self.max_leverage = max_leverage
 
     def simulate_pair(
@@ -160,7 +252,21 @@ class WalkForwardBacktester:
 
             borrow_fee_series[t] = daily_borrow_cost
 
-            # 2. Rebalanceo / Cambio de posición
+            # 2. Control de Riesgos: Chequeo de Stop-Loss intradiario/en barra t sobre posición abierta
+            force_exit = False
+            if current_trade is not None and self.risk_manager is not None:
+                force_exit = self.risk_manager.check_stop_loss(
+                    entry_price_a=current_trade["entry_price_a"],
+                    entry_price_b=current_trade["entry_price_b"],
+                    current_price_a=p_a,
+                    current_price_b=p_b,
+                    position_size_a=shares_a[t - 1],
+                    position_size_b=shares_b[t - 1]
+                )
+                if force_exit:
+                    desired_pos = 0  # Forzar liquidación inmediata
+
+            # 3. Rebalanceo / Cambio de posición
             step_costs = 0.0
             if desired_pos != prev_pos:
                 # Si había una posición previa, cerrarla
@@ -181,16 +287,16 @@ class WalkForwardBacktester:
                         current_trade["exit_date"] = dates[t]
                         current_trade["exit_price_a"] = exec_a
                         current_trade["exit_price_b"] = exec_b
+                        current_trade["exit_reason"] = "FORCE_EXIT" if force_exit else "SIGNAL_EXIT"
                         current_trade["pnl_net"] = (cash + (shares_a[t-1]*exec_a) + (shares_b[t-1]*exec_b)) - current_trade["entry_nav"]
                         trades.append(current_trade)
                         current_trade = None
 
                 # Si la nueva posición es activa (+1 o -1), dimensionar orden
-                if desired_pos != 0:
+                if desired_pos != 0 and not force_exit:
                     beta_t = abs(beta_vals[t])
-                    # Asignación de capital 50/50 balanceada por el ratio beta
+                    # Asignación de capital balanceada por el ratio beta
                     allocated_capital = cash * self.max_leverage
-                    # Monto en A y B: V_A + V_B = allocated_capital, V_B = beta * V_A => V_A = Cap / (1 + beta)
                     nav_a = allocated_capital / (1.0 + beta_t) if (1.0 + beta_t) > 0 else allocated_capital * 0.5
                     nav_b = allocated_capital - nav_a
 
@@ -238,6 +344,7 @@ class WalkForwardBacktester:
             current_trade["exit_date"] = dates[-1]
             current_trade["exit_price_a"] = price_a_vals[-1]
             current_trade["exit_price_b"] = price_b_vals[-1]
+            current_trade["exit_reason"] = "END_OF_PERIOD"
             current_trade["pnl_net"] = net_portfolio_val[-1] - current_trade["entry_nav"]
             trades.append(current_trade)
 

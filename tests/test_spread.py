@@ -101,3 +101,21 @@ class TestKalmanSpreadTracker:
         # Al final de la serie, el beta estimado debe converger al true_beta = 2.0
         final_beta = df_kalman["beta"].iloc[-1]
         assert np.isclose(final_beta, true_beta, atol=0.15)
+        # En datos cointegrados normales no debe haber ruptura estructural
+        assert not df_kalman["is_broken"].any()
+
+    def test_kalman_step_and_structural_breakdown_detection(self):
+        tracker = KalmanSpreadTracker(breakdown_threshold=2.0)
+        
+        # Paso normal con varianza inicial
+        beta, alpha, error, is_broken = tracker.step(100.0, 50.0)
+        assert isinstance(beta, float)
+        assert isinstance(alpha, float)
+        assert isinstance(error, float)
+        assert isinstance(is_broken, bool)
+        assert is_broken is False
+
+        # Forzar incremento de incertidumbre P[1, 1] por encima del umbral
+        tracker.P[1, 1] = 5.0
+        _, _, _, is_broken_after = tracker.step(150.0, 50.0)
+        assert is_broken_after is True

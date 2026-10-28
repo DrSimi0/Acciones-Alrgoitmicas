@@ -268,72 +268,99 @@ class EconometricValidator:
 
 class KalmanSpreadTracker:
     """
-    Filtro de Kalman para el rastreo dinámico en tiempo real del ratio de cobertura (beta_t)
-    y el intercepto (alpha_t), garantizando que en t no se use información de t+1.
+    Rastreador dinámico del ratio de cobertura (beta) e intercepto (alpha)
+    mediante un Filtro de Kalman en numpy puro, con monitorización continua
+    de la covarianza de estado para detectar rupturas estructurales.
     """
 
     def __init__(
         self,
         delta: float = 1e-4,
         observation_variance_r: float = 1e-3,
-        initial_p: float = 1.0
-    ):
+        initial_p: float = 1.0,
+        breakdown_threshold: float = 5.0
+    ) -> None:
         """
         Args:
-            delta: Varianza de transición del estado (ruido de proceso Q = delta / (1 - delta) * I).
-            observation_variance_r: Varianza del ruido de medición R.
-            initial_p: Varianza inicial de estimación P_0.
+            delta: Varianza del ruido de proceso del estado (Q).
+            observation_variance_r: Varianza del error de medición (R).
+            initial_p: Varianza inicial de la matriz de covarianza de estado P_0.
+            breakdown_threshold: Umbral crítico para la varianza de beta (P[1, 1]);
+                                 si se supera, indica colapso estructural de la relación.
         """
-        self.delta = delta
-        self.r = observation_variance_r
-        # Matriz de covarianza de proceso Q
-        q_scale = delta / (1.0 - delta) if delta < 1.0 else 1e-4
-        self.Q = np.eye(2) * q_scale
-        self.R = observation_variance_r
+        self.delta: float = float(delta)
+        self.r: float = float(observation_variance_r)
+        self.breakdown_threshold: float = float(breakdown_threshold)
+
+        # Matriz de covarianza de ruido de proceso Q
+        q_scale: float = self.delta / (1.0 - self.delta) if self.delta < 1.0 else 1e-4
+        self.Q: np.ndarray = np.eye(2, dtype=np.float64) * q_scale
+
+        # Matriz de covarianza de ruido de medición R
+        self.R: float = self.r
 
         # Estado inicial [alpha, beta]^T
-        self.theta = np.zeros(2)
-        # Covarianza de estado P
-        self.P = np.eye(2) * initial_p
+        self.theta: np.ndarray = np.zeros(2, dtype=np.float64)
 
-    def update(self, y_t: float, x_t: float) -> Tuple[float, float, float]:
+        # Matriz de covarianza de error del estado P
+        self.P: np.ndarray = np.eye(2, dtype=np.float64) * float(initial_p)
+
+    def step(self, y_t: float, x_t: float) -> tuple[float, float, float, bool]:
         """
-        Actualiza el estado online con una nueva observación (y_t, x_t).
+        Paso secuencial de predicción y actualización (sin look-ahead bias).
 
         Args:
-            y_t: Precio observado del activo dependiente en t.
-            x_t: Precio observado del activo independiente en t.
+            y_t: Precio observado del activo dependiente A en tiempo t.
+            x_t: Precio observado del activo independiente B en tiempo t.
 
         Returns:
-            Tupla (beta_t, alpha_t, spread_residual_t).
+            Tupla (beta_t, alpha_t, residual_spread_t, is_broken):
+                - beta_t: Ratio de cobertura dinámico estimado.
+                - alpha_t: Intercepto dinámico estimado.
+                - residual_spread_t: Error de predicción (spread residual).
+                - is_broken: Flag booleano; True si la varianza de beta (P[1, 1])
+                             supera breakdown_threshold.
         """
-        # 1. Predicción del estado y covarianza
-        theta_pred = self.theta
-        P_pred = self.P + self.Q
+        # 1. Predicción del estado y covarianza a priori
+        theta_pred: np.ndarray = self.theta
+        P_pred: np.ndarray = self.P + self.Q
 
-        # 2. Vector de observación H_t = [1, x_t]
-        H = np.array([1.0, x_t])
+        # 2. Vector de medición H_t = [1, x_t]
+        H: np.ndarray = np.array([1.0, float(x_t)], dtype=np.float64)
 
-        # 3. Innovación (error de predicción)
-        y_hat = np.dot(H, theta_pred)
-        error = y_t - y_hat
+        # 3. Innovación (error de spread residual)
+        y_hat: float = float(np.dot(H, theta_pred))
+        error: float = float(y_t - y_hat)
 
-        # 4. Varianza de la innovación S_t = H * P * H^T + R
-        S = np.dot(H, np.dot(P_pred, H)) + self.R
+        # 4. Varianza de la innovación S_t = H * P_pred * H^T + R
+        S: float = float(np.dot(H, np.dot(P_pred, H)) + self.R)
 
-        # 5. Ganancia de Kalman K_t = P * H^T / S
-        K = np.dot(P_pred, H) / S
+        # 5. Ganancia de Kalman K_t = P_pred * H^T / S_t
+        K: np.ndarray = np.dot(P_pred, H) / S
 
-        # 6. Actualización del estado
+        # 6. Actualización a posteriori del estado
         self.theta = theta_pred + K * error
 
-        # 7. Actualización de la covarianza: P = (I - K * H) * P_pred
+        # 7. Actualización a posteriori de la covarianza: P = (I - K * H) * P_pred
         self.P = P_pred - np.outer(K, np.dot(H, P_pred))
 
-        alpha_t = float(self.theta[0])
-        beta_t = float(self.theta[1])
-        spread_t = float(error)
+        alpha_t: float = float(self.theta[0])
+        beta_t: float = float(self.theta[1])
+        residual_spread_t: float = error
 
+        # Detección de Ruptura Estructural por incertidumbre en beta
+        # Se evalúa la varianza estimada de beta antes o después de la observación
+        beta_variance: float = max(float(P_pred[1, 1]), float(self.P[1, 1]))
+        is_broken: bool = bool(beta_variance > self.breakdown_threshold)
+
+        return beta_t, alpha_t, residual_spread_t, is_broken
+
+    def update(self, y_t: float, x_t: float) -> tuple[float, float, float]:
+        """
+        Método de conveniencia para compatibilidad hacia atrás:
+        retorna únicamente (beta_t, alpha_t, residual_spread_t).
+        """
+        beta_t, alpha_t, spread_t, _ = self.step(y_t, x_t)
         return beta_t, alpha_t, spread_t
 
     def filter_series(self, y: pd.Series, x: pd.Series) -> pd.DataFrame:
@@ -344,7 +371,7 @@ class KalmanSpreadTracker:
             y, x: Series cronológicas alineadas.
 
         Returns:
-            DataFrame con beta_t, alpha_t y spread_t para cada barra temporal.
+            DataFrame con beta, alpha, spread, beta_variance y is_broken.
         """
         df = pd.concat([y, x], axis=1).dropna()
         y_vals = df.iloc[:, 0].values
@@ -352,18 +379,21 @@ class KalmanSpreadTracker:
         dates = df.index
 
         n = len(y_vals)
-        betas = np.zeros(n)
-        alphas = np.zeros(n)
-        spreads = np.zeros(n)
+        betas = np.zeros(n, dtype=np.float64)
+        alphas = np.zeros(n, dtype=np.float64)
+        spreads = np.zeros(n, dtype=np.float64)
+        is_brokens = np.zeros(n, dtype=bool)
 
         for t in range(n):
-            b_t, a_t, s_t = self.update(y_vals[t], x_vals[t])
+            b_t, a_t, s_t, broken_t = self.step(float(y_vals[t]), float(x_vals[t]))
             betas[t] = b_t
             alphas[t] = a_t
             spreads[t] = s_t
+            is_brokens[t] = broken_t
 
         return pd.DataFrame({
             "beta": betas,
             "alpha": alphas,
-            "spread": spreads
+            "spread": spreads,
+            "is_broken": is_brokens
         }, index=dates)

@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 import numpy as np
 
-from src.backtest import MarketImpactModel, WalkForwardBacktester
+from src.backtest import MarketImpactModel, WalkForwardBacktester, RiskManager
 from src.metrics import PerformanceMetrics
 
 
@@ -62,6 +62,53 @@ class TestWalkForwardBacktester:
         final_net = history["net_equity"].iloc[-1]
         final_gross = history["gross_equity"].iloc[-1]
         assert final_net < final_gross
+
+
+class TestRiskManager:
+
+    def test_unrealized_pnl_and_stop_loss_trigger(self):
+        risk_mgr = RiskManager(max_loss_pct=-0.08)
+
+        # Posición Long Spread: Compramos 100 de A a $100 (+$10,000), Vendemos 200 de B a $50 (-$10,000)
+        # Nocional total inicial = $20,000
+        # Caso 1: A sube a $102 (+200), B baja a $49 (+200). PnL = +$400 (+2.0%) -> No stop
+        assert risk_mgr.check_stop_loss(
+            entry_price_a=100.0, entry_price_b=50.0,
+            current_price_a=102.0, current_price_b=49.0,
+            position_size_a=100.0, position_size_b=-200.0
+        ) is False
+
+        # Caso 2: Pérdida menor a 8%: A baja a $98 (-200), B sube a $52 (-400). PnL = -$600 (-3.0%) -> No stop
+        assert risk_mgr.check_stop_loss(
+            entry_price_a=100.0, entry_price_b=50.0,
+            current_price_a=98.0, current_price_b=52.0,
+            position_size_a=100.0, position_size_b=-200.0
+        ) is False
+
+        # Caso 3: Pérdida excede -8%: Nocional $20,000, 8% son $1,600.
+        # A cae a $90 (-$1,000), B sube a $55 (-$1,000). Pérdida = -$2,000 (-10%) -> Debe activar Stop-Loss
+        assert risk_mgr.check_stop_loss(
+            entry_price_a=100.0, entry_price_b=50.0,
+            current_price_a=90.0, current_price_b=55.0,
+            position_size_a=100.0, position_size_b=-200.0
+        ) is True
+
+    def test_backtester_integrates_risk_manager_force_exit(self):
+        dates = pd.date_range("2023-01-01", periods=5, freq="B")
+        # Precios donde el par diverge catastróficamente en t=2
+        prices_a = pd.Series([100.0, 100.0, 80.0, 70.0, 60.0], index=dates)
+        prices_b = pd.Series([50.0, 50.0, 60.0, 65.0, 70.0], index=dates)
+        # Señal mantiene posición activa en 1 todo el tiempo
+        signals = pd.Series([0, 1, 1, 1, 1], index=dates)
+        beta = pd.Series([2.0] * 5, index=dates)
+
+        risk_mgr = RiskManager(max_loss_pct=-0.08)
+        backtester = WalkForwardBacktester(initial_capital=100_000.0, risk_manager=risk_mgr)
+        history, trades = backtester.simulate_pair(prices_a, prices_b, signals, beta)
+
+        assert not trades.empty
+        # Debe haber registrado FORCE_EXIT como motivo de salida
+        assert (trades["exit_reason"] == "FORCE_EXIT").any()
 
 
 class TestPerformanceMetrics:
