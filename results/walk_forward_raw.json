@@ -1,0 +1,236 @@
+{
+  "num_windows": 5,
+  "windows": [
+    {
+      "window": 0,
+      "formation_start": "2023-01-02 00:00:00",
+      "formation_end": "2023-12-19 00:00:00",
+      "trading_start": "2023-12-20 00:00:00",
+      "trading_end": "2024-03-15 00:00:00",
+      "candidates_ssd_count": 10,
+      "validated_pairs_count": 1,
+      "traded_pairs": [
+        {
+          "pair": "PAIR_B1_PAIR_B2",
+          "metrics": {
+            "initial_capital": 100000.0,
+            "final_capital": 100000.0,
+            "total_net_return": 0.0,
+            "total_gross_return": 0.0,
+            "friction_drag": 0.0,
+            "cagr": 0.0,
+            "annualized_volatility": 0.0,
+            "sharpe_ratio": 0.0,
+            "sortino_ratio": 0.0,
+            "max_drawdown": 0.0,
+            "calmar_ratio": 0.0,
+            "num_trades": 0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "win_loss_ratio": 0.0,
+            "expectancy_per_trade": 0.0
+          },
+          "num_trades": 0
+        }
+      ]
+    },
+    {
+      "window": 1,
+      "formation_start": "2023-03-30 00:00:00",
+      "formation_end": "2024-03-15 00:00:00",
+      "trading_start": "2024-03-18 00:00:00",
+      "trading_end": "2024-06-12 00:00:00",
+      "candidates_ssd_count": 10,
+      "validated_pairs_count": 2,
+      "traded_pairs": [
+        {
+          "pair": "PAIR_B1_PAIR_B2",
+          "metrics": {
+            "initial_capital": 100000.0,
+            "final_capital": 96831.45005414206,
+            "total_net_return": -0.03168549945857946,
+            "total_gross_return": -0.03135161425657018,
+            "friction_drag": 0.0003338852020092764,
+            "cagr": -0.1226687954236253,
+            "annualized_volatility": 0.06231144029307022,
+            "sharpe_ratio": -2.0684280660980896,
+            "sortino_ratio": -0.38133700921689434,
+            "max_drawdown": -0.03168549945857944,
+            "calmar_ratio": -3.871449007265386,
+            "num_trades": 1,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "win_loss_ratio": 0.0,
+            "expectancy_per_trade": -2095.663510191851
+          },
+          "num_trades": 1
+        },
+        {
+          "pair": "PAIR_A1_PAIR_A2",
+          "metrics": {
+            "initial_capital": 100000.0,
+            "final_capital": 100000.0,
+            "total_net_return": 0.0,
+            "total_gross_return": 0.0,
+            "friction_drag": 0.0,
+            "cagr": 0.0,
+            "annualized_volatility": 0.0,
+            "sharpe_ratio": 0.0,
+            "sortino_ratio": 0.0,
+            "max_drawdown": 0.0,
+            "calmar_ratio": 0.0,
+            "num_trades": 0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "win_loss_ratio": 0.0,
+            "expectancy_per_trade": 0.0
+          },
+          "num_trades": 0
+        }
+      ]
+    },
+    {
+      "window": 2,
+      "formation_start": "2023-06-27 00:00:00",
+      "formation_end": "2024-06-12 00:00:00",
+      "trading_start": "2024-06-13 00:00:00",
+      "trading_end": "2024-09-09 00:00:00",
+      "candidates_ssd_count": 10,
+      "validated_pairs_count": 2,
+      "traded_pairs": [
+        {
+          "pair": "PAIR_B1_PAIR_B2",
+          "metrics": {
+            "initial_capital": 100000.0,
+            "final_capital": 100000.0,
+            "total_net_return": 0.0,
+            "total_gross_return": 0.0,
+            "friction_drag": 0.0,
+            "cagr": 0.0,
+            "annualized_volatility": 0.0,
+            "sharpe_ratio": 0.0,
+            "sortino_ratio": 0.0,
+            "max_drawdown": 0.0,
+            "calmar_ratio": 0.0,
+            "num_trades": 0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "win_loss_ratio": 0.0,
+            "expectancy_per_trade": 0.0
+          },
+          "num_trades": 0
+        },
+        {
+          "pair": "PAIR_A1_PAIR_A2",
+          "metrics": {
+            "initial_capital": 100000.0,
+            "final_capital": 148242.70052038142,
+            "total_net_return": 0.4824270052038142,
+            "total_gross_return": 0.48276197876133686,
+            "friction_drag": 0.00033497355752265534,
+            "cagr": 3.953632775202368,
+            "annualized_volatility": 0.9750245179646776,
+            "sharpe_ratio": 2.0126722830535537,
+            "sortino_ratio": 0.0,
+            "max_drawdown": -0.0007999764971843979,
+            "calmar_ratio": 4942.186163115539,
+            "num_trades": 1,
+            "win_rate": 1.0,
+            "profit_factor": Infinity,
+            "win_loss_ratio": 0.0,
+            "expectancy_per_trade": 24021.95211878755
+          },
+          "num_trades": 1
+        }
+      ]
+    },
+    {
+      "window": 3,
+      "formation_start": "2023-09-22 00:00:00",
+      "formation_end": "2024-09-09 00:00:00",
+      "trading_start": "2024-09-10 00:00:00",
+      "trading_end": "2024-12-05 00:00:00",
+      "candidates_ssd_count": 10,
+      "validated_pairs_count": 1,
+      "traded_pairs": [
+        {
+          "pair": "PAIR_A1_PAIR_A2",
+          "metrics": {
+            "initial_capital": 100000.0,
+            "final_capital": 153658.03357335608,
+            "total_net_return": 0.5365803357335608,
+            "total_gross_return": 0.536916370334898,
+            "friction_drag": 0.00033603460133724283,
+            "cagr": 4.731349702869055,
+            "annualized_volatility": 1.0842883935720267,
+            "sharpe_ratio": 2.013014376715425,
+            "sortino_ratio": 0.0,
+            "max_drawdown": -0.000799974358304753,
+            "calmar_ratio": 5914.376696892366,
+            "num_trades": 1,
+            "win_rate": 1.0,
+            "profit_factor": Infinity,
+            "win_loss_ratio": 0.0,
+            "expectancy_per_trade": 26215.56869671124
+          },
+          "num_trades": 1
+        }
+      ]
+    },
+    {
+      "window": 4,
+      "formation_start": "2023-12-20 00:00:00",
+      "formation_end": "2024-12-05 00:00:00",
+      "trading_start": "2024-12-06 00:00:00",
+      "trading_end": "2025-03-04 00:00:00",
+      "candidates_ssd_count": 6,
+      "validated_pairs_count": 2,
+      "traded_pairs": [
+        {
+          "pair": "PAIR_B1_PAIR_B2",
+          "metrics": {
+            "initial_capital": 100000.0,
+            "final_capital": 93235.63814197706,
+            "total_net_return": -0.06764361858022938,
+            "total_gross_return": -0.06697163089440195,
+            "friction_drag": 0.0006719876858274354,
+            "cagr": -0.24774456248359,
+            "annualized_volatility": 0.1118848766683984,
+            "sharpe_ratio": -2.486280255718205,
+            "sortino_ratio": -0.7534535705008889,
+            "max_drawdown": -0.0735815501954381,
+            "calmar_ratio": -3.3669386119966473,
+            "num_trades": 2,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "win_loss_ratio": 0.0,
+            "expectancy_per_trade": -1729.3345782495235
+          },
+          "num_trades": 2
+        },
+        {
+          "pair": "PAIR_A1_PAIR_A2",
+          "metrics": {
+            "initial_capital": 100000.0,
+            "final_capital": 66674.35966030615,
+            "total_net_return": -0.3332564033969385,
+            "total_gross_return": -0.3327587048379279,
+            "friction_drag": 0.0004976985590106064,
+            "cagr": -0.8074790835500079,
+            "annualized_volatility": 1.5189135186794391,
+            "sharpe_ratio": -0.13771652868274092,
+            "sortino_ratio": -0.04081178186101322,
+            "max_drawdown": -0.5603864098481711,
+            "calmar_ratio": -1.4409326660308965,
+            "num_trades": 2,
+            "win_rate": 0.5,
+            "profit_factor": 0.4196768146301392,
+            "win_loss_ratio": 0.4196768146301392,
+            "expectancy_per_trade": -7646.632642148634
+          },
+          "num_trades": 2
+        }
+      ]
+    }
+  ]
+}

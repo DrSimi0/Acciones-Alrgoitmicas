@@ -1,0 +1,41 @@
+# Registro de Decisiones de Arquitectura (ADRs)
+
+Este documento registra las decisiones técnicas clave, su contexto y sus justificaciones.
+
+---
+
+## ADR 001: Arquitectura de Embudo (Funnel) de Dos Pasos
+* **Fecha:** 2026-10-27
+* **Estado:** Aceptado
+* **Contexto:** En un universo de $N$ acciones, existen $\mathcal{O}(N^2)$ pares potenciales. Probar cointegración y Ornstein-Uhlenbeck para todas las combinaciones es prohibitivamente costoso computacionalmente e infla la tasa de falsos descubrimientos.
+* **Decisión:** Implementar un embudo:
+  1. Filtro rápido de distancia euclidiana SSD en `selection.py` para aislar el Top-K de pares.
+  2. Validación econométrica rigurosa (Engle-Granger, Johansen, OU Half-Life y FDR) en `spread.py` sobre los pares preseleccionados.
+* **Consecuencias:** Máxima eficiencia computacional con rigor estadístico preservado.
+
+---
+
+## ADR 002: Normalización por Log-Precios Estandarizados en SSD
+* **Fecha:** 2026-10-27
+* **Estado:** Aceptado
+* **Contexto:** Normalizar con $P_t / P_0$ genera sesgo dependiente de anomalías en $t=0$.
+* **Decisión:** Estandarizar la serie de log-precios longitudinalmente en la ventana de formación.
+* **Consecuencias:** Mayor robustez del comovimiento sin distorsión por la cotización inicial.
+
+---
+
+## ADR 003: Inclusión de Costos de Préstamo de Cortos (*Short-Borrow Fee*)
+* **Fecha:** 2026-10-27
+* **Estado:** Aceptado
+* **Contexto:** El pairs trading requiere vender en corto una acción; obviar el costo de préstamo infla artificialmente el Sharpe y el retorno neto.
+* **Decisión:** Incorporar el parámetro `short_borrow_rate_annual` (devengado diariamente) en el motor de backtesting.
+* **Consecuencias:** Simulaciones out-of-sample financieramente realistas.
+
+---
+
+## ADR 004: Fallback Robusto en Estimación GARCH(1,1)
+* **Fecha:** 2026-10-27
+* **Estado:** Aceptado
+* **Contexto:** La optimización de máxima verosimilitud en GARCH(1,1) puede no converger en ventanas de mercado con cambios abruptos de régimen.
+* **Decisión:** Implementar fallback automático a volatilidad EWMA / rolling std ante `ConvergenceWarning` o fallo de optimización.
+* **Consecuencias:** Prevención de interrupciones inesperadas en simulaciones extensas.
