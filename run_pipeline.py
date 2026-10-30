@@ -103,6 +103,7 @@ def main():
     summary_records = []
     window_logs = []
     all_candidates_audit = []
+    all_trades_records = []
 
     for w_idx, (df_formation, df_trading) in enumerate(splits):
         f_start = df_formation.index[0].strftime("%Y-%m-%d")
@@ -231,7 +232,8 @@ def main():
                     prices_a=p_a_oos,
                     prices_b=p_b_oos,
                     signals=signals_df["position"],
-                    hedge_ratio=kalman_df["beta"]
+                    hedge_ratio=kalman_df["beta"],
+                    signals_exit_reasons=signals_df["exit_reason"]
                 )
 
                 # Evaluación de Métricas con PerformanceEvaluator
@@ -258,8 +260,27 @@ def main():
                         d_out = str(tr["exit_date"])[:10]
                         dr = tr["direction"]
                         pnl = float(tr.get("pnl_net", 0.0))
+                        ret_p = float(tr.get("return_pct", 0.0))
                         reason = tr.get("exit_reason", "none")
-                        print(f"        -> Trade: {dr} | {d_in} a {d_out} | PnL: ${pnl:>9.2f} | Salida: {reason}")
+                        print(f"        -> Trade: {dr} | {d_in} a {d_out} | PnL: ${pnl:>9.2f} ({ret_p:>6.2%}) | Salida: {reason}")
+
+                        all_trades_records.append({
+                            "window": w_idx + 1,
+                            "pair": pair_name,
+                            "direction": dr,
+                            "entry_date": d_in,
+                            "exit_date": d_out,
+                            "entry_price_a": tr.get("entry_price_a"),
+                            "entry_price_b": tr.get("entry_price_b"),
+                            "exit_price_a": tr.get("exit_price_a"),
+                            "exit_price_b": tr.get("exit_price_b"),
+                            "shares_a": tr.get("shares_a"),
+                            "shares_b": tr.get("shares_b"),
+                            "initial_notional": tr.get("initial_notional"),
+                            "pnl_net": pnl,
+                            "return_pct": ret_p,
+                            "exit_reason": reason
+                        })
 
                 summary_records.append({
                     "window": w_idx,
@@ -284,6 +305,7 @@ def main():
     output_csv = "results/walk_forward_real_universe.csv"
     output_json = "results/walk_forward_real_universe.json"
     audit_csv = "results/real_universe_candidates_audit.csv"
+    trades_csv = "results/trades_real_universe.csv"
 
     if all_candidates_audit:
         pd.DataFrame(all_candidates_audit).to_csv(audit_csv, index=False)
@@ -296,6 +318,13 @@ def main():
     else:
         print("      No se generaron trades en el universo durante el periodo analizado.")
         pd.DataFrame().to_csv(output_csv, index=False)
+
+    if all_trades_records:
+        df_trades_all = pd.DataFrame(all_trades_records)
+        df_trades_all.to_csv(trades_csv, index=False)
+        print(f"      Registro de operaciones detalladas guardado en: {trades_csv} ({len(df_trades_all)} trades)")
+    else:
+        pd.DataFrame().to_csv(trades_csv, index=False)
 
     with open(output_json, "w") as f:
         json.dump(window_logs, f, indent=2)
@@ -312,6 +341,12 @@ def main():
         print(f"      Retorno Neto promedio por ventana: {avg_ret:.2%}")
         print(f"      Sharpe promedio OOS              : {avg_sharpe:.2f}")
         print(f"      Peor Drawdown registrado         : {max_dd_overall:.2%}")
+
+    if all_trades_records:
+        df_tr = pd.DataFrame(all_trades_records)
+        print("\n      Distribución de Motivos de Salida (exit_reason):")
+        for reason, count in df_tr["exit_reason"].value_counts().items():
+            print(f"        - {reason:<22}: {count:>3} trades ({count / len(df_tr):.1%})")
 
     print("\n" + "=" * 78)
     print("BACKTEST REAL FINALIZADO CON ÉXITO")
