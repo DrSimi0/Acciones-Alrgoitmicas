@@ -192,7 +192,8 @@ class WalkForwardBacktester:
         prices_a: pd.Series,
         prices_b: pd.Series,
         signals: pd.Series,
-        hedge_ratio: pd.Series
+        hedge_ratio: pd.Series,
+        signals_exit_reasons: Optional[pd.Series] = None
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Simula la operativa del par respetando la regla estricta de ejecución t+1:
@@ -203,6 +204,7 @@ class WalkForwardBacktester:
             prices_b: Precios del activo independiente B.
             signals: Serie con {-1, 0, 1} generada por el módulo de señales.
             hedge_ratio: Serie del ratio beta_t para la cobertura.
+            signals_exit_reasons: Serie opcional con el motivo de salida emitido por SignalGenerator.
 
         Returns:
             Tupla (portfolio_history_df, trades_summary_df).
@@ -220,6 +222,11 @@ class WalkForwardBacktester:
         price_a_vals = df["price_a"].values
         price_b_vals = df["price_b"].values
         beta_vals = df["beta"].values
+        reasons_vals = (
+            signals_exit_reasons.reindex(dates).fillna("none").values
+            if signals_exit_reasons is not None
+            else None
+        )
 
         # Series de seguimiento
         cash = self.initial_capital
@@ -289,23 +296,52 @@ class WalkForwardBacktester:
                     comm = self.impact_model.compute_commission(delta_a * exec_a) + \
                            self.impact_model.compute_commission(delta_b * exec_b)
 
-                    cash += (delta_a * exec_a) + (delta_b * exec_b) - comm
+                    # Flujo de caja por rebalanceo: vender (delta < 0) genera caja positiva; comprar (delta > 0) consume caja
+                    cash -= (delta_a * exec_a) + (delta_b * exec_b) + comm
                     step_costs += comm
 
                     if current_trade is not None:
                         current_trade["exit_date"] = dates[t]
                         current_trade["exit_price_a"] = exec_a
                         current_trade["exit_price_b"] = exec_b
-                        current_trade["exit_reason"] = "FORCE_EXIT" if force_exit else "SIGNAL_EXIT"
-                        current_trade["pnl_net"] = (cash + (shares_a[t-1]*exec_a) + (shares_b[t-1]*exec_b)) - current_trade["entry_nav"]
+
+                        if force_exit:
+                            exit_lbl = "stop_loss_8pct"
+                        elif reasons_vals is not None and t > 0:
+                            sig_reason = str(reasons_vals[t - 1])
+                            if sig_reason == "convergence":
+                                exit_lbl = "mean_reversion"
+                            elif sig_reason == "stop_kalman_breakdown":
+                                exit_lbl = "stop_kalman_breakdown"
+                            elif sig_reason == "stop_structural_break":
+                                exit_lbl = "stop_structural_break"
+                            elif sig_reason == "stop_half_life":
+                                exit_lbl = "stop_half_life"
+                            else:
+                                exit_lbl = "signal_exit"
+                        else:
+                            exit_lbl = "signal_exit"
+
+                        current_trade["exit_reason"] = exit_lbl
+
+                        # Cálculo riguroso y exacto de PnL por patas y comisiones
+                        pnl_a = shares_a[t - 1] * (exec_a - current_trade["entry_price_a"])
+                        pnl_b = shares_b[t - 1] * (exec_b - current_trade["entry_price_b"])
+                        total_trade_comm = current_trade.get("entry_comm", 0.0) + comm
+                        pnl = pnl_a + pnl_b - total_trade_comm
+
+                        current_trade["pnl_net"] = pnl
+                        init_notional = current_trade.get("initial_notional", 0.0)
+                        current_trade["return_pct"] = (pnl / init_notional) if init_notional > 1e-9 else 0.0
                         trades.append(current_trade)
                         current_trade = None
 
                 # Si la nueva posición es activa (+1 o -1), dimensionar orden
                 if desired_pos != 0 and not force_exit:
                     beta_t = abs(beta_vals[t])
-                    # Asignación de capital balanceada por el ratio beta
-                    allocated_capital = cash * self.max_leverage
+                    # Asignación de capital balanceada por el ratio beta sobre patrimonio neto actual
+                    current_nav = cash + (shares_a[t - 1] * p_a) + (shares_b[t - 1] * p_b) if t > 0 else cash
+                    allocated_capital = max(current_nav, 0.0) * self.max_leverage
                     nav_a = allocated_capital / (1.0 + beta_t) if (1.0 + beta_t) > 0 else allocated_capital * 0.5
                     nav_b = allocated_capital - nav_a
 
@@ -324,6 +360,7 @@ class WalkForwardBacktester:
                     shares_a[t] = new_shares_a
                     shares_b[t] = new_shares_b
 
+                    init_notional = abs(new_shares_a * exec_a) + abs(new_shares_b * exec_b)
                     current_trade = {
                         "entry_date": dates[t],
                         "direction": "LONG_SPREAD" if desired_pos == 1 else "SHORT_SPREAD",
@@ -331,7 +368,9 @@ class WalkForwardBacktester:
                         "entry_price_b": exec_b,
                         "shares_a": new_shares_a,
                         "shares_b": new_shares_b,
-                        "entry_nav": cash + (new_shares_a * exec_a) + (new_shares_b * exec_b)
+                        "initial_notional": init_notional,
+                        "entry_comm": comm,
+                        "entry_nav": current_nav
                     }
                 else:
                     shares_a[t] = 0.0
@@ -353,8 +392,13 @@ class WalkForwardBacktester:
             current_trade["exit_date"] = dates[-1]
             current_trade["exit_price_a"] = price_a_vals[-1]
             current_trade["exit_price_b"] = price_b_vals[-1]
-            current_trade["exit_reason"] = "END_OF_PERIOD"
-            current_trade["pnl_net"] = net_portfolio_val[-1] - current_trade["entry_nav"]
+            current_trade["exit_reason"] = "end_of_period"
+            pnl_a = shares_a[-1] * (price_a_vals[-1] - current_trade["entry_price_a"])
+            pnl_b = shares_b[-1] * (price_b_vals[-1] - current_trade["entry_price_b"])
+            pnl = pnl_a + pnl_b - current_trade.get("entry_comm", 0.0)
+            current_trade["pnl_net"] = pnl
+            init_notional = current_trade.get("initial_notional", 0.0)
+            current_trade["return_pct"] = (pnl / init_notional) if init_notional > 1e-9 else 0.0
             trades.append(current_trade)
 
         history_df = pd.DataFrame({
