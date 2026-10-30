@@ -296,7 +296,8 @@ class WalkForwardBacktester:
                     comm = self.impact_model.compute_commission(delta_a * exec_a) + \
                            self.impact_model.compute_commission(delta_b * exec_b)
 
-                    cash += (delta_a * exec_a) + (delta_b * exec_b) - comm
+                    # Flujo de caja por rebalanceo: vender (delta < 0) genera caja positiva; comprar (delta > 0) consume caja
+                    cash -= (delta_a * exec_a) + (delta_b * exec_b) + comm
                     step_costs += comm
 
                     if current_trade is not None:
@@ -322,7 +323,13 @@ class WalkForwardBacktester:
                             exit_lbl = "signal_exit"
 
                         current_trade["exit_reason"] = exit_lbl
-                        pnl = (cash + (shares_a[t-1]*exec_a) + (shares_b[t-1]*exec_b)) - current_trade["entry_nav"]
+
+                        # Cálculo riguroso y exacto de PnL por patas y comisiones
+                        pnl_a = shares_a[t - 1] * (exec_a - current_trade["entry_price_a"])
+                        pnl_b = shares_b[t - 1] * (exec_b - current_trade["entry_price_b"])
+                        total_trade_comm = current_trade.get("entry_comm", 0.0) + comm
+                        pnl = pnl_a + pnl_b - total_trade_comm
+
                         current_trade["pnl_net"] = pnl
                         init_notional = current_trade.get("initial_notional", 0.0)
                         current_trade["return_pct"] = (pnl / init_notional) if init_notional > 1e-9 else 0.0
@@ -332,8 +339,9 @@ class WalkForwardBacktester:
                 # Si la nueva posición es activa (+1 o -1), dimensionar orden
                 if desired_pos != 0 and not force_exit:
                     beta_t = abs(beta_vals[t])
-                    # Asignación de capital balanceada por el ratio beta
-                    allocated_capital = cash * self.max_leverage
+                    # Asignación de capital balanceada por el ratio beta sobre patrimonio neto actual
+                    current_nav = cash + (shares_a[t - 1] * p_a) + (shares_b[t - 1] * p_b) if t > 0 else cash
+                    allocated_capital = max(current_nav, 0.0) * self.max_leverage
                     nav_a = allocated_capital / (1.0 + beta_t) if (1.0 + beta_t) > 0 else allocated_capital * 0.5
                     nav_b = allocated_capital - nav_a
 
@@ -361,7 +369,8 @@ class WalkForwardBacktester:
                         "shares_a": new_shares_a,
                         "shares_b": new_shares_b,
                         "initial_notional": init_notional,
-                        "entry_nav": cash + (new_shares_a * exec_a) + (new_shares_b * exec_b)
+                        "entry_comm": comm,
+                        "entry_nav": current_nav
                     }
                 else:
                     shares_a[t] = 0.0
@@ -384,7 +393,9 @@ class WalkForwardBacktester:
             current_trade["exit_price_a"] = price_a_vals[-1]
             current_trade["exit_price_b"] = price_b_vals[-1]
             current_trade["exit_reason"] = "end_of_period"
-            pnl = net_portfolio_val[-1] - current_trade["entry_nav"]
+            pnl_a = shares_a[-1] * (price_a_vals[-1] - current_trade["entry_price_a"])
+            pnl_b = shares_b[-1] * (price_b_vals[-1] - current_trade["entry_price_b"])
+            pnl = pnl_a + pnl_b - current_trade.get("entry_comm", 0.0)
             current_trade["pnl_net"] = pnl
             init_notional = current_trade.get("initial_notional", 0.0)
             current_trade["return_pct"] = (pnl / init_notional) if init_notional > 1e-9 else 0.0
