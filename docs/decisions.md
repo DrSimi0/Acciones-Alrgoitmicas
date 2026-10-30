@@ -61,4 +61,16 @@ Este documento registra las decisiones técnicas clave, su contexto y sus justif
   1. Registrar `exit_reason` individual en cada orden cerrada y exportar `results/trades_*.csv`.
   2. Corregir y auditar la contabilidad de caja en `simulate_pair`: flujo de caja unificado $Cash \leftarrow Cash - \Delta S \cdot P_{exec} - Comm$ y cálculo de PnL exacto por patas sin distorsiones por rebalanceos intermedios.
 * **Consecuencias:** Trazabilidad absoluta de cada dólar ganado o perdido por el sistema.
-* **Consecuencias:** Prevención de interrupciones inesperadas en simulaciones extensas.
+
+---
+
+## ADR 007: Adopción del Universo Sectorial de Semiconductores como Núcleo de Producción
+* **Fecha:** 2026-10-30
+* **Estado:** Aceptado
+* **Contexto:** 
+  1. El universo heterogéneo de 7 mega-caps generó 0 trades con FDR=0.05 y resultados destructivos (-0.53%, Sharpe -0.40) cuando se relajó el FDR al 25% (Experimento A).
+  2. El universo sectorial de 15 activos de semiconductores (105 combinaciones) comparte factores sistemáticos y cadenas de suministro estrechamente ligadas.
+* **Decisión:**
+  1. Adoptar oficialmente la configuración del **Experimento B** en la rama `main`: 15 semiconductores, preselección SSD Top-20, rigor pleno de cointegración ($p \le 0.05$, $HL \le 30\text{d}$, $\text{FDR} \le 0.05$) y Hard Stop-Loss (-8%).
+  2. Descartar el enfoque de relajación de FDR (Experimento A) por inducir sobreoperación en series no estacionarias.
+* **Consecuencias:** Se establece una base reproducible con cointegración genuina y mitigación activa de colas izquierdas demostrada en mercado real.

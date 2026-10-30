@@ -51,9 +51,11 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
 - **Máxima pérdida en trade individual:** -3.16% (NVDA/SPY).
 - **Retorno neto medio:** -0.53%, Sharpe: -0.40. Demuestra que relajar el filtro econométrico degrada la expectativa matemática.
 
-### Experimento B: Dimensionalidad Sectorial (Rama `exp-sector-semis`):
-- **Calibración:** 15 activos de semiconductores (105 pares), `top_n_pairs=20`, rigor completo (`fdr_alpha=0.05`, `max_half_life=30d`).
-- **Trades ejecutados OOS:** 9 operaciones sobre pares intrasectoriales genuinos (`LRCX/NXPI`, `NVDA/TSM`, `AVGO/TSM`).
-- **Validación Crítica de Riesgo:**
-  - `mean_reversion`: 8 trades (88.9%).
-  - `stop_loss_8pct`: 1 trade (11.1%) en `AVGO/TSM` (Ventana 12, dic-2024). Tras un salto abrupto del +24.6% en AVGO por earnings, el `RiskManager` ejecutó una salida forzada inmediata en -$10,066 (-10.33%), amputando una pérdida que sin stop-loss hubiera resultado en ruina de capital.
+### Adopción en Producción (`main`):
+- **Estrategia Seleccionada:** Se adopta de forma definitiva el **Experimento B (Sector Semiconductores)** como núcleo de producción en `main`.
+- **Justificación:** 
+  1. El Experimento A demostró que relajar el FDR al 25% degrada la expectativa matemática y fuerza la entrada de pares espurios sin reversión fiable. Queda formalmente descartado.
+  2. El Experimento B probó que en un universo homogéneo con 105 combinaciones, el filtro FDR al 5% aísla cointegración económica real, mientras que el `RiskManager` demostró su eficacia salvando la cuenta ante el salto no lineal de AVGO (+24.6% en una sesión).
+- **Archivos de Producción en `main`:**
+  - Pipeline: `run_pipeline.py` (ejecuta el universo de semiconductores con Top-20 SSD y FDR=0.05).
+  - Resultados oficiales: `results/walk_forward_real_universe.csv`, `results/trades_real_universe.csv`, `results/real_universe_candidates_audit.csv`.

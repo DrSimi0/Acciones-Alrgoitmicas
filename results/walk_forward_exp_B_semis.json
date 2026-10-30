@@ -1,0 +1,152 @@
+[
+  {
+    "window": 1,
+    "formation_start": "2021-01-04",
+    "formation_end": "2021-12-31",
+    "trading_start": "2022-01-03",
+    "trading_end": "2022-04-01",
+    "ssd_candidates": 20,
+    "validated_pairs": 1,
+    "trades": []
+  },
+  {
+    "window": 2,
+    "formation_start": "2021-04-06",
+    "formation_end": "2022-04-01",
+    "trading_start": "2022-04-04",
+    "trading_end": "2022-07-05",
+    "ssd_candidates": 20,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 3,
+    "formation_start": "2021-07-06",
+    "formation_end": "2022-07-05",
+    "trading_start": "2022-07-06",
+    "trading_end": "2022-10-03",
+    "ssd_candidates": 20,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 4,
+    "formation_start": "2021-10-04",
+    "formation_end": "2022-10-03",
+    "trading_start": "2022-10-04",
+    "trading_end": "2023-01-03",
+    "ssd_candidates": 20,
+    "validated_pairs": 1,
+    "trades": []
+  },
+  {
+    "window": 5,
+    "formation_start": "2022-01-03",
+    "formation_end": "2023-01-03",
+    "trading_start": "2023-01-04",
+    "trading_end": "2023-04-04",
+    "ssd_candidates": 20,
+    "validated_pairs": 1,
+    "trades": []
+  },
+  {
+    "window": 6,
+    "formation_start": "2022-04-04",
+    "formation_end": "2023-04-04",
+    "trading_start": "2023-04-05",
+    "trading_end": "2023-07-06",
+    "ssd_candidates": 20,
+    "validated_pairs": 1,
+    "trades": []
+  },
+  {
+    "window": 7,
+    "formation_start": "2022-07-06",
+    "formation_end": "2023-07-06",
+    "trading_start": "2023-07-07",
+    "trading_end": "2023-10-04",
+    "ssd_candidates": 20,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 8,
+    "formation_start": "2022-10-04",
+    "formation_end": "2023-10-04",
+    "trading_start": "2023-10-05",
+    "trading_end": "2024-01-04",
+    "ssd_candidates": 20,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 9,
+    "formation_start": "2023-01-04",
+    "formation_end": "2024-01-04",
+    "trading_start": "2024-01-05",
+    "trading_end": "2024-04-05",
+    "ssd_candidates": 20,
+    "validated_pairs": 1,
+    "trades": []
+  },
+  {
+    "window": 10,
+    "formation_start": "2023-04-05",
+    "formation_end": "2024-04-05",
+    "trading_start": "2024-04-08",
+    "trading_end": "2024-07-08",
+    "ssd_candidates": 20,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 11,
+    "formation_start": "2023-07-07",
+    "formation_end": "2024-07-08",
+    "trading_start": "2024-07-09",
+    "trading_end": "2024-10-04",
+    "ssd_candidates": 20,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 12,
+    "formation_start": "2023-10-05",
+    "formation_end": "2024-10-04",
+    "trading_start": "2024-10-07",
+    "trading_end": "2025-01-06",
+    "ssd_candidates": 20,
+    "validated_pairs": 3,
+    "trades": []
+  },
+  {
+    "window": 13,
+    "formation_start": "2024-01-05",
+    "formation_end": "2025-01-06",
+    "trading_start": "2025-01-07",
+    "trading_end": "2025-04-08",
+    "ssd_candidates": 20,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 14,
+    "formation_start": "2024-04-08",
+    "formation_end": "2025-04-08",
+    "trading_start": "2025-04-09",
+    "trading_end": "2025-07-10",
+    "ssd_candidates": 20,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 15,
+    "formation_start": "2024-07-09",
+    "formation_end": "2025-07-10",
+    "trading_start": "2025-07-11",
+    "trading_end": "2025-10-08",
+    "ssd_candidates": 20,
+    "validated_pairs": 0,
+    "trades": []
+  }
+]
