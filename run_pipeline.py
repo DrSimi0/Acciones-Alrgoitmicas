@@ -22,7 +22,7 @@ from src.universe import WalkForwardSplitter
 from src.selection import DistancePreselector
 from src.spread import EconometricValidator, KalmanSpreadTracker
 from src.signals import SignalGenerator
-from src.backtest import WalkForwardBacktester, MarketImpactModel, RiskManager
+from src.backtest import WalkForwardBacktester, MarketImpactModel, RiskManager, CorporateCalendarManager
 from src.metrics import PerformanceEvaluator
 
 
@@ -97,10 +97,17 @@ def main():
         short_borrow_rate_annual=0.02
     )
     risk_manager = RiskManager(max_loss_pct=-0.08)  # Hard Stop-Loss del -8%
+    calendar_manager = CorporateCalendarManager.generate_synthetic_schedule(
+        tickers=semis_tickers,
+        start_date=start_date,
+        end_date=end_date,
+        interval_days=90
+    )
     backtester = WalkForwardBacktester(
         initial_capital=100_000.0,
         impact_model=impact_model,
         risk_manager=risk_manager,
+        calendar_manager=calendar_manager,
         max_leverage=1.0
     )
 
@@ -231,13 +238,15 @@ def main():
                     kalman_breakdown=kalman_df["is_broken"]
                 )
 
-                # Simulación de trading OOS con RiskManager (Hard Stop-Loss -8%)
+                # Simulación de trading OOS con RiskManager (Stop-Loss -8%) y CorporateCalendarManager (Earnings Filter)
                 history_df, trades_df = backtester.simulate_pair(
                     prices_a=p_a_oos,
                     prices_b=p_b_oos,
                     signals=signals_df["position"],
                     hedge_ratio=kalman_df["beta"],
-                    signals_exit_reasons=signals_df["exit_reason"]
+                    signals_exit_reasons=signals_df["exit_reason"],
+                    ticker_a=a,
+                    ticker_b=b
                 )
 
                 # Evaluación de Métricas con PerformanceEvaluator

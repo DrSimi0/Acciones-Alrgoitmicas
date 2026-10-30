@@ -9,7 +9,7 @@ Implementa:
 3. Motor Walk-Forward continuo que concatena los periodos de negociación fuera de muestra.
 """
 
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union
 import numpy as np
 import pandas as pd
 
@@ -163,6 +163,126 @@ class RiskManager:
         return bool(return_pct <= self.max_loss_pct)
 
 
+class CorporateCalendarManager:
+    """
+    Filtro de Cuarentena y Evacuación por Calendario Corporativo (Earnings Blackout Filter).
+    Protege la estrategia de Pairs Trading contra el riesgo idiosincrásico no lineal
+    y gaps nocturnos originados por anuncios de resultados trimestrales (earnings).
+    """
+
+    def __init__(
+        self,
+        earnings_dates: Optional[Dict[str, List[pd.Timestamp]]] = None,
+        quarantine_window_days: int = 3,
+        evacuation_window_days: int = 1
+    ) -> None:
+        """
+        Args:
+            earnings_dates: Mapeo {ticker: [Timestamp_1, Timestamp_2, ...]}.
+                           Si es None, se inicializa vacío o puede poblarse con generate_synthetic_schedule().
+            quarantine_window_days: Número de días hábiles previos a earnings para bloquear entradas (default: 3).
+            evacuation_window_days: Número de días hábiles previos para forzar liquidación preventiva (default: 1).
+        """
+        self.earnings_dates: Dict[str, List[pd.Timestamp]] = {}
+        if earnings_dates is not None:
+            for ticker, d_list in earnings_dates.items():
+                self.earnings_dates[ticker.upper()] = [pd.Timestamp(d).normalize() for d in d_list]
+        self.quarantine_window_days = quarantine_window_days
+        self.evacuation_window_days = evacuation_window_days
+
+    @classmethod
+    def generate_synthetic_schedule(
+        cls,
+        tickers: List[str],
+        start_date: str = "2021-01-01",
+        end_date: str = "2025-12-31",
+        interval_days: int = 90
+    ) -> "CorporateCalendarManager":
+        """
+        Genera un calendario corporativo trimestral determinista decalado por activo
+        para garantizar ejecución inmediata sin depender de APIs externas de pago,
+        manteniendo la firma lista para ingerir calendarios históricos reales.
+        """
+        schedule: Dict[str, List[pd.Timestamp]] = {}
+        start_ts = pd.Timestamp(start_date)
+        end_ts = pd.Timestamp(end_date)
+
+        for idx, ticker in enumerate(tickers):
+            tick_key = ticker.upper()
+            schedule[tick_key] = []
+            # Desfase determinista por ticker (entre 12 y 65 días para escalonar earnings entre empresas)
+            offset_days = (idx * 19) % 65 + 12
+            current_event = start_ts + pd.Timedelta(days=offset_days)
+            while current_event <= end_ts:
+                # Ajustar a día hábil si cae en fin de semana
+                if current_event.dayofweek == 5:  # Sábado -> Lunes
+                    current_event += pd.Timedelta(days=2)
+                elif current_event.dayofweek == 6:  # Domingo -> Lunes
+                    current_event += pd.Timedelta(days=1)
+                schedule[tick_key].append(current_event.normalize())
+                current_event += pd.Timedelta(days=interval_days)
+
+        return cls(earnings_dates=schedule)
+
+    def set_earnings_schedule(self, ticker: str, dates: List[Any]) -> None:
+        """Permite asignar o actualizar las fechas de earnings para un ticker."""
+        self.earnings_dates[ticker.upper()] = [pd.Timestamp(d).normalize() for d in dates]
+
+    def _has_earnings_in_business_days(
+        self,
+        ticker: str,
+        current_date: pd.Timestamp,
+        n_business_days: int
+    ) -> bool:
+        """
+        Determina si un ticker reporta resultados en el intervalo (current_date, current_date + n días hábiles].
+        """
+        tick_key = ticker.upper()
+        if tick_key not in self.earnings_dates:
+            return False
+
+        curr_norm = pd.Timestamp(current_date).normalize()
+        # Generar los próximos n días hábiles estrictamente posteriores a current_date
+        future_bdays = pd.bdate_range(curr_norm + pd.Timedelta(days=1), periods=n_business_days)
+        if len(future_bdays) == 0:
+            return False
+
+        end_limit = future_bdays[-1]
+
+        for e_date in self.earnings_dates[tick_key]:
+            if curr_norm < e_date <= end_limit:
+                return True
+        return False
+
+    def is_in_quarantine(
+        self,
+        ticker_a: str,
+        ticker_b: str,
+        current_date: pd.Timestamp
+    ) -> bool:
+        """
+        Retorna True si alguno de los dos activos reporta earnings en los próximos N días hábiles (default 3).
+        """
+        return (
+            self._has_earnings_in_business_days(ticker_a, current_date, self.quarantine_window_days) or
+            self._has_earnings_in_business_days(ticker_b, current_date, self.quarantine_window_days)
+        )
+
+    def requires_evacuation(
+        self,
+        ticker_a: str,
+        ticker_b: str,
+        current_date: pd.Timestamp
+    ) -> bool:
+        """
+        Retorna True si alguno de los dos activos reporta earnings en el próximo día hábil (evacuación urgente).
+        """
+        return (
+            self._has_earnings_in_business_days(ticker_a, current_date, self.evacuation_window_days) or
+            self._has_earnings_in_business_days(ticker_b, current_date, self.evacuation_window_days)
+        )
+
+
 class WalkForwardBacktester:
     """
     Motor vectorizado de simulación para pares con ejecución en t+1 y descomposición de costos.
@@ -173,6 +293,7 @@ class WalkForwardBacktester:
         initial_capital: float = 100_000.0,
         impact_model: Optional[MarketImpactModel] = None,
         risk_manager: Optional[RiskManager] = None,
+        calendar_manager: Optional[CorporateCalendarManager] = None,
         max_leverage: float = 1.0
     ):
         """
@@ -180,11 +301,13 @@ class WalkForwardBacktester:
             initial_capital: Capital inicial en divisa base.
             impact_model: Instancia de MarketImpactModel (o valores por defecto si es None).
             risk_manager: Instancia de RiskManager para evaluar stop-loss por capital.
+            calendar_manager: Instancia de CorporateCalendarManager para filtros de cuarentena y evacuación por earnings.
             max_leverage: Límite de apalancamiento bruto del portafolio.
         """
         self.initial_capital = initial_capital
         self.impact_model = impact_model if impact_model is not None else MarketImpactModel()
         self.risk_manager = risk_manager
+        self.calendar_manager = calendar_manager
         self.max_leverage = max_leverage
 
     def simulate_pair(
@@ -193,7 +316,9 @@ class WalkForwardBacktester:
         prices_b: pd.Series,
         signals: pd.Series,
         hedge_ratio: pd.Series,
-        signals_exit_reasons: Optional[pd.Series] = None
+        signals_exit_reasons: Optional[pd.Series] = None,
+        ticker_a: Optional[str] = None,
+        ticker_b: Optional[str] = None
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Simula la operativa del par respetando la regla estricta de ejecución t+1:
@@ -205,6 +330,8 @@ class WalkForwardBacktester:
             signals: Serie con {-1, 0, 1} generada por el módulo de señales.
             hedge_ratio: Serie del ratio beta_t para la cobertura.
             signals_exit_reasons: Serie opcional con el motivo de salida emitido por SignalGenerator.
+            ticker_a: Símbolo del activo A (autodeducible si prices_a.name existe).
+            ticker_b: Símbolo del activo B (autodeducible si prices_b.name existe).
 
         Returns:
             Tupla (portfolio_history_df, trades_summary_df).
@@ -216,6 +343,9 @@ class WalkForwardBacktester:
 
         if n < 2:
             return pd.DataFrame(), pd.DataFrame()
+
+        t_a = ticker_a if ticker_a is not None else str(prices_a.name if prices_a.name is not None else "asset_a")
+        t_b = ticker_b if ticker_b is not None else str(prices_b.name if prices_b.name is not None else "asset_b")
 
         # REGLA DE NO LOOK-AHEAD: Ejecución en t+1 (la posición deseada se desplaza una barra)
         target_positions = df["signal"].shift(1).fillna(0).astype(int).values
@@ -267,20 +397,40 @@ class WalkForwardBacktester:
 
             borrow_fee_series[t] = daily_borrow_cost
 
-            # 2. Control de Riesgos: Chequeo de Stop-Loss intradiario/en barra t sobre posición abierta
-            force_exit = False
-            if current_trade is not None and self.risk_manager is not None:
-                force_exit = self.risk_manager.check_stop_loss(
-                    entry_price_a=current_trade["entry_price_a"],
-                    entry_price_b=current_trade["entry_price_b"],
-                    current_price_a=p_a,
-                    current_price_b=p_b,
-                    position_size_a=shares_a[t - 1],
-                    position_size_b=shares_b[t - 1]
-                )
-                if force_exit:
-                    desired_pos = 0  # Forzar liquidación inmediata
-                    cooldown_direction = prev_pos  # Activar cooldown para evitar re-entradas inmediatas
+            # 2. Control de Riesgos y Calendario Corporativo sobre posición abierta
+            force_stop_loss = False
+            force_earnings_evac = False
+
+            if current_trade is not None:
+                # 2a. Evacuación preventiva obligatoria si hay earnings al día siguiente
+                if self.calendar_manager is not None:
+                    force_earnings_evac = self.calendar_manager.requires_evacuation(
+                        ticker_a=t_a,
+                        ticker_b=t_b,
+                        current_date=dates[t]
+                    )
+                    if force_earnings_evac:
+                        desired_pos = 0  # Evacuación inmediata a mercado
+
+                # 2b. Hard Stop-Loss por pérdida máxima (-8%) en paralelo
+                if not force_earnings_evac and self.risk_manager is not None:
+                    force_stop_loss = self.risk_manager.check_stop_loss(
+                        entry_price_a=current_trade["entry_price_a"],
+                        entry_price_b=current_trade["entry_price_b"],
+                        current_price_a=p_a,
+                        current_price_b=p_b,
+                        position_size_a=shares_a[t - 1],
+                        position_size_b=shares_b[t - 1]
+                    )
+                    if force_stop_loss:
+                        desired_pos = 0  # Forzar liquidación inmediata
+                        cooldown_direction = prev_pos  # Activar cooldown para evitar re-entradas inmediatas
+
+            # 2c. Cuarentena Previa: Bloquear nuevas entradas si hay earnings en próximos 3 días hábiles
+            if desired_pos != 0 and prev_pos == 0 and not force_stop_loss and not force_earnings_evac:
+                if self.calendar_manager is not None:
+                    if self.calendar_manager.is_in_quarantine(t_a, t_b, dates[t]):
+                        desired_pos = 0  # Inhibir entrada por cuarentena
 
             # 3. Rebalanceo / Cambio de posición
             step_costs = 0.0
@@ -305,7 +455,9 @@ class WalkForwardBacktester:
                         current_trade["exit_price_a"] = exec_a
                         current_trade["exit_price_b"] = exec_b
 
-                        if force_exit:
+                        if force_earnings_evac:
+                            exit_lbl = "FORCE_EXIT_EARNINGS"
+                        elif force_stop_loss:
                             exit_lbl = "stop_loss_8pct"
                         elif reasons_vals is not None and t > 0:
                             sig_reason = str(reasons_vals[t - 1])
@@ -337,7 +489,7 @@ class WalkForwardBacktester:
                         current_trade = None
 
                 # Si la nueva posición es activa (+1 o -1), dimensionar orden
-                if desired_pos != 0 and not force_exit:
+                if desired_pos != 0 and not force_stop_loss and not force_earnings_evac:
                     beta_t = abs(beta_vals[t])
                     # Asignación de capital balanceada por el ratio beta sobre patrimonio neto actual
                     current_nav = cash + (shares_a[t - 1] * p_a) + (shares_b[t - 1] * p_b) if t > 0 else cash

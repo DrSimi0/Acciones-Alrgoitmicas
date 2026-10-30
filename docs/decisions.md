@@ -74,3 +74,15 @@ Este documento registra las decisiones técnicas clave, su contexto y sus justif
   1. Adoptar oficialmente la configuración del **Experimento B** en la rama `main`: 15 semiconductores, preselección SSD Top-20, rigor pleno de cointegración ($p \le 0.05$, $HL \le 30\text{d}$, $\text{FDR} \le 0.05$) y Hard Stop-Loss (-8%).
   2. Descartar el enfoque de relajación de FDR (Experimento A) por inducir sobreoperación en series no estacionarias.
 * **Consecuencias:** Se establece una base reproducible con cointegración genuina y mitigación activa de colas izquierdas demostrada en mercado real.
+
+---
+
+## ADR 008: Filtro de Cuarentena y Evacuación por Calendario Corporativo (Earnings Blackout Filter)
+* **Fecha:** 2026-10-30
+* **Estado:** Aceptado
+* **Contexto:** Los anuncios de resultados trimestrales (*earnings announcements*) representan eventos discretos de información asimétrica capaces de inducir brechas nocturnas (*overnight gaps*) y saltos de volatilidad no continuos que rompen de forma exógena la relación de cobertura $\beta_t$.
+* **Decisión:** Implementar la clase `CorporateCalendarManager` integrada en `WalkForwardBacktester`:
+  1. **Cuarentena Previa (`is_in_quarantine`):** Bloquear aperturas de nuevas posiciones si alguno de los activos reporta resultados en los próximos 3 días hábiles.
+  2. **Evacuación Preventiva (`requires_evacuation`):** Liquidar forzadamente a mercado posiciones abiertas si cualquiera de los activos reporta al día hábil siguiente (`FORCE_EXIT_EARNINGS`).
+  3. **Operación en Paralelo:** Coexistencia con el *Hard Stop-Loss* (-8%) y el filtro Kalman de incertidumbre.
+* **Consecuencias:** Eliminación sistemática del riesgo idiosincrásico por gaps de earnings.

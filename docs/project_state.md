@@ -29,11 +29,11 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
 | **Módulo 2: Preselección SSD** (`selection.py`) | ✅ Completado | ✅ `tests/test_selection.py` (3/3 pasadas) |
 | **Módulo 3: Motor Econométrico** (`spread.py`) | ✅ Completado | ✅ `tests/test_spread.py` (5/5 pasadas) |
 | **Módulo 4: Generación de Señales** (`signals.py`) | ✅ Completado | ✅ `tests/test_signals.py` (5/5 pasadas) |
-| **Módulo 5: Backtest & Métricas** (`backtest.py`, `metrics.py`) | ✅ Completado | ✅ `tests/test_backtest.py` (5/5 pasadas) |
+| **Módulo 5: Backtest & Métricas** (`backtest.py`, `metrics.py`) | ✅ Completado | ✅ `tests/test_backtest.py` (9/9 pasadas) |
 | **Pipeline Integrado & Runner** (`pipeline.py`, `run_pipeline.py`) | ✅ Completado | ✅ Simulación Walk-Forward (5 ventanas) |
-| **Prueba en Universo Real (7 Activos)** (`run_pipeline.py`, `yfinance`) | ✅ Completado | ✅ 15 Ventanas Walk-Forward (2021-2025) |
+| **Prueba en Universo Real (Semiconductores)** (`run_pipeline.py`, `yfinance`) | ✅ Completado | ✅ 15 Ventanas Walk-Forward (2021-2025) |
 
-**Total Suite de Pruebas Unitarias:** 28/28 pruebas pasadas (100% éxito).
+**Total Suite de Pruebas Unitarias:** 32/32 pruebas pasadas (100% éxito).
 
 ---
 

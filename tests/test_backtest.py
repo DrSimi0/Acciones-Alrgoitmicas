@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 import numpy as np
 
-from src.backtest import MarketImpactModel, WalkForwardBacktester, RiskManager
+from src.backtest import MarketImpactModel, WalkForwardBacktester, RiskManager, CorporateCalendarManager
 from src.metrics import PerformanceMetrics
 
 
@@ -125,3 +125,83 @@ class TestPerformanceMetrics:
         assert np.isclose(metrics["total_net_return"], 0.10, atol=1e-4)
         assert metrics["sharpe_ratio"] > 0.0
         assert metrics["max_drawdown"] <= 0.0
+
+
+class TestCorporateCalendarManager:
+
+    def test_synthetic_schedule_generation(self):
+        tickers = ["NVDA", "TSM", "AAPL"]
+        mgr = CorporateCalendarManager.generate_synthetic_schedule(
+            tickers=tickers,
+            start_date="2022-01-01",
+            end_date="2023-12-31",
+            interval_days=90
+        )
+        for t in tickers:
+            dates = mgr.earnings_dates.get(t, [])
+            assert len(dates) >= 7  # ~8 trimestres en 2 años
+            # Ninguna fecha debe caer en fin de semana
+            for d in dates:
+                assert d.dayofweek < 5
+
+    def test_is_in_quarantine_and_evacuation_logic(self):
+        # 2023-01-10 es Martes
+        earnings_date = pd.Timestamp("2023-01-10")
+        mgr = CorporateCalendarManager(earnings_dates={"AAA": [earnings_date], "BBB": []})
+
+        # Jueves 2023-01-05: 3 días hábiles hacia adelante son Viernes 06, Lunes 09, Martes 10
+        # Está en cuarentena (3 días hábiles)
+        assert mgr.is_in_quarantine("AAA", "BBB", pd.Timestamp("2023-01-05")) is True
+        # Pero NO requiere evacuación urgente (requiere_evacuation solo mira 1 día hábil adelante)
+        assert mgr.requires_evacuation("AAA", "BBB", pd.Timestamp("2023-01-05")) is False
+
+        # Lunes 2023-01-09: El siguiente día hábil es Martes 10 (anuncio de earnings)
+        # Requiere evacuación urgente
+        assert mgr.requires_evacuation("AAA", "BBB", pd.Timestamp("2023-01-09")) is True
+        assert mgr.is_in_quarantine("AAA", "BBB", pd.Timestamp("2023-01-09")) is True
+
+        # Miércoles 2023-01-04: 3 días hábiles son Jueves 05, Viernes 06, Lunes 09. Martes 10 no está.
+        assert mgr.is_in_quarantine("AAA", "BBB", pd.Timestamp("2023-01-04")) is False
+
+    def test_backtester_blocks_entry_in_quarantine(self):
+        dates = pd.date_range("2023-01-02", periods=6, freq="B")
+        # 2023-01-02 Lun, 03 Mar, 04 Mie, 05 Jue, 06 Vie, 09 Lun
+        prices_a = pd.Series([100.0] * 6, index=dates, name="AAA")
+        prices_b = pd.Series([50.0] * 6, index=dates, name="BBB")
+        # Señal de compra en t=1 (Mar 03) -> ejecución t+1 (Mie 04)
+        signals = pd.Series([0, 1, 1, 1, 1, 0], index=dates)
+        beta = pd.Series([2.0] * 6, index=dates)
+
+        # AAA reporta el Viernes 06.
+        # En Mie 04, los próximos 3 días hábiles son Jue 05, Vie 06, Lun 09 -> En cuarentena.
+        calendar_mgr = CorporateCalendarManager(earnings_dates={"AAA": [pd.Timestamp("2023-01-06")]})
+        backtester = WalkForwardBacktester(initial_capital=100_000.0, calendar_manager=calendar_mgr)
+
+        history, trades = backtester.simulate_pair(prices_a, prices_b, signals, beta, ticker_a="AAA", ticker_b="BBB")
+
+        # La entrada debió ser bloqueada por estar en cuarentena
+        assert history["shares_a"].iloc[2] == 0.0
+        assert trades.empty
+
+    def test_backtester_evacuates_position_before_earnings(self):
+        dates = pd.date_range("2023-01-02", periods=6, freq="B")
+        # 2023-01-02 Lun, 03 Mar, 04 Mie, 05 Jue, 06 Vie, 09 Lun
+        prices_a = pd.Series([100.0] * 6, index=dates, name="AAA")
+        prices_b = pd.Series([50.0] * 6, index=dates, name="BBB")
+        # Señal abre en t=0 (Lun 02) -> entra en t=1 (Mar 03)
+        signals = pd.Series([1, 1, 1, 1, 1, 0], index=dates)
+        beta = pd.Series([2.0] * 6, index=dates)
+
+        # BBB reporta earnings el Lunes 09.
+        # En Mar 03 (t=1): los 3 días hábiles de cuarentena son Mie 04, Jue 05, Vie 06 (Lunes 09 NO está -> permite entrada).
+        # En Vie 06 (t=4): el próximo día hábil es Lunes 09 -> requiere evacuación preventiva inmediata.
+        calendar_mgr = CorporateCalendarManager(earnings_dates={"BBB": [pd.Timestamp("2023-01-09")]})
+        backtester = WalkForwardBacktester(initial_capital=100_000.0, calendar_manager=calendar_mgr)
+
+        history, trades = backtester.simulate_pair(prices_a, prices_b, signals, beta, ticker_a="AAA", ticker_b="BBB")
+
+        assert not trades.empty
+        # Debe haber salido con motivo FORCE_EXIT_EARNINGS en Vie 06
+        assert (trades["exit_reason"] == "FORCE_EXIT_EARNINGS").any()
+        assert trades["exit_date"].iloc[0] == pd.Timestamp("2023-01-06")
+
