@@ -102,6 +102,7 @@ def main():
     print("\n[3/5] Ejecutando Funnel Cuantitativo (SSD -> Econometría -> Kalman -> Riesgo)...")
     summary_records = []
     window_logs = []
+    all_candidates_audit = []
 
     for w_idx, (df_formation, df_trading) in enumerate(splits):
         f_start = df_formation.index[0].strftime("%Y-%m-%d")
@@ -122,9 +123,62 @@ def main():
 
         # Paso 2: Validación Econométrica Rigurosa (Cointegración + OU Half-Life + FDR)
         validated_df = validator.validate_candidate_pairs(df_formation, candidate_pairs)
+        
+        # Enriquecer con correlación y SSD para auditoría completa
+        if not validated_df.empty:
+            merged_candidates = validated_df.merge(
+                candidates_df[["asset_a", "asset_b", "ssd", "correlation"]],
+                on=["asset_a", "asset_b"],
+                how="left"
+            )
+        else:
+            merged_candidates = pd.DataFrame()
+
         approved_pairs = validated_df[validated_df["is_valid_pair"]] if not validated_df.empty else pd.DataFrame()
         n_approved = len(approved_pairs)
         print(f"    [Funnel 2] Pares validados (Cointegración + Half-Life + FDR): {n_approved}")
+
+        # Registrar candidatos evaluados en esta ventana
+        if not merged_candidates.empty:
+            for _, cand_row in merged_candidates.iterrows():
+                pair_key = f"{cand_row['asset_a']}_{cand_row['asset_b']}"
+                rej_reasons = []
+                if not cand_row["is_cointegrated"]:
+                    rej_reasons.append(f"p-val={cand_row['p_value']:.4f}>0.05")
+                if not cand_row["is_half_life_valid"]:
+                    rej_reasons.append(f"HL={cand_row['half_life']:.1f}d no en [{validator.min_half_life}, {validator.max_half_life}]")
+                if not cand_row["fdr_approved"]:
+                    rej_reasons.append("Rechazado por FDR Benjamini-Hochberg")
+                
+                status_str = "APROBADO" if cand_row["is_valid_pair"] else "RECHAZADO (" + ", ".join(rej_reasons) + ")"
+                
+                all_candidates_audit.append({
+                    "window": w_idx + 1,
+                    "formation_period": f"{f_start} a {f_end}",
+                    "trading_period": f"{t_start} a {t_end}",
+                    "pair": pair_key,
+                    "correlation": round(float(cand_row.get("correlation", 0.0)), 4),
+                    "ssd": round(float(cand_row.get("ssd", 0.0)), 2),
+                    "coint_stat": round(float(cand_row["coint_stat"]), 4),
+                    "p_value": round(float(cand_row["p_value"]), 4),
+                    "half_life": round(float(cand_row["half_life"]), 2) if not np.isinf(cand_row["half_life"]) else None,
+                    "is_cointegrated": bool(cand_row["is_cointegrated"]),
+                    "is_half_life_valid": bool(cand_row["is_half_life_valid"]),
+                    "fdr_approved": bool(cand_row["fdr_approved"]),
+                    "is_valid_pair": bool(cand_row["is_valid_pair"]),
+                    "status": status_str
+                })
+
+        # Mostrar en consola los top candidatos evaluados
+        if not merged_candidates.empty:
+            print("    [Auditoría Candidatos Top IS]:")
+            for _, c_row in merged_candidates.head(3).iterrows():
+                p_label = f"{c_row['asset_a']}/{c_row['asset_b']}"
+                p_val_lbl = f"{c_row['p_value']:.4f}"
+                hl_lbl = f"{c_row['half_life']:.1f}d" if not np.isinf(c_row['half_life']) else "inf"
+                corr_lbl = f"{c_row.get('correlation', 0.0):.2f}"
+                stat_lbl = "APROBADO" if c_row["is_valid_pair"] else "RECHAZADO"
+                print(f"      - {p_label:<10} | Corr: {corr_lbl:>5} | p-val: {p_val_lbl:>6} | HL: {hl_lbl:>6} -> {stat_lbl}")
 
         w_record = {
             "window": w_idx,
@@ -229,6 +283,11 @@ def main():
     print("\n[4/5] Exportando resultados consolidados...")
     output_csv = "results/walk_forward_real_universe.csv"
     output_json = "results/walk_forward_real_universe.json"
+    audit_csv = "results/real_universe_candidates_audit.csv"
+
+    if all_candidates_audit:
+        pd.DataFrame(all_candidates_audit).to_csv(audit_csv, index=False)
+        print(f"      Auditoría detallada de candidatos guardada en: {audit_csv} ({len(all_candidates_audit)} pares evaluados)")
 
     if summary_records:
         df_summary = pd.DataFrame(summary_records)
