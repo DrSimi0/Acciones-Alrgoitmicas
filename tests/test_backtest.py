@@ -107,8 +107,8 @@ class TestRiskManager:
         history, trades = backtester.simulate_pair(prices_a, prices_b, signals, beta)
 
         assert not trades.empty
-        # Debe haber registrado FORCE_EXIT como motivo de salida
-        assert (trades["exit_reason"] == "FORCE_EXIT").any()
+        # Debe haber registrado stop_loss_8pct como motivo de salida
+        assert (trades["exit_reason"].isin(["FORCE_EXIT", "stop_loss_8pct"])).any()
 
 
 class TestPerformanceMetrics:
