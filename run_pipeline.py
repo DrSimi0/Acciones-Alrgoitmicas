@@ -1,20 +1,17 @@
 """
-Script Central Coordinador — Pipeline de Integración Real (run_pipeline.py).
+Script Central Coordinador — Experimento A: Prueba de Estrés de Riesgo (run_pipeline.py).
 
-Ejecuta el sistema cuantitativo completo de Pairs Trading sobre un universo real
-de 7 activos (NVDA, AAPL, SBUX, JPM, JNJ, XOM, SPY) utilizando yfinance:
-- Ingesta y limpieza point-in-time (EquityDataLoader)
-- Partición Walk-Forward sin look-ahead (WalkForwardSplitter)
-- Preselección SSD sobre log-precios estandarizados (DistancePreselector)
-- Validación econométrica rigurosa (EconometricValidator: EG + Johansen + OU + FDR)
-- Hedge ratio dinámico y detección de ruptura (KalmanSpreadTracker)
-- Señales con bandas elásticas GARCH/EWMA (SignalGenerator)
-- Backtest realista t+1 con Hard Stop-Loss (-8%) y costos de préstamo (WalkForwardBacktester + RiskManager)
-- Reporte detallado a consola y exportación a results/walk_forward_real_universe.csv
+Rama: exp-relax-fdr
+Objetivo:
+Obligar al sistema a operar señales fronterizas/de baja calidad relajando la
+rigurosidad estadística (coint_pvalue_threshold=0.25 y fdr_alpha=0.25) sobre el universo
+de 7 mega-caps (NVDA, AAPL, SBUX, JPM, JNJ, XOM, SPY).
+Evalúa cómo el Filtro de Kalman y el Stop-Loss por Capital (-8%) contienen las pérdidas.
 """
 
 import os
 import json
+import logging
 import pandas as pd
 import numpy as np
 
@@ -28,8 +25,11 @@ from src.metrics import PerformanceEvaluator
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    logging.warning("Modo de Prueba de Estrés (FDR=0.25) - Alto riesgo de falsos positivos")
+
     print("=" * 78)
-    print("SISTEMA CUANTITATIVO DE PAIRS TRADING — BACKTEST SOBRE UNIVERSO REAL")
+    print("EXPERIMENTO A: PRUEBA DE ESTRÉS DE RIESGO (FDR=0.25, p-val=0.25)")
     print("=" * 78)
 
     os.makedirs("results", exist_ok=True)
@@ -71,13 +71,13 @@ def main():
     )
     print(f"      Total de ventanas Walk-Forward generadas: {len(splits)}")
 
-    # 3. Inicialización de Componentes de Riesgo y Econométricos
+    # 3. Inicialización de Componentes: Rigurosidad Relajada para Estrés
     preselector = DistancePreselector(top_n_pairs=10)
     validator = EconometricValidator(
-        coint_pvalue_threshold=0.05,
+        coint_pvalue_threshold=0.25,  # Relajado para permitir pares fronterizos
         min_half_life=2.0,
         max_half_life=40.0,
-        fdr_alpha=0.05
+        fdr_alpha=0.25               # Relajado al 25% para forzar señales de prueba
     )
     signal_gen = SignalGenerator(
         base_entry_z=2.0,
@@ -90,7 +90,7 @@ def main():
         impact_parameter=0.05,
         short_borrow_rate_annual=0.02
     )
-    risk_manager = RiskManager(max_loss_pct=-0.08)  # Hard Stop-Loss del 8%
+    risk_manager = RiskManager(max_loss_pct=-0.08)  # Hard Stop-Loss del -8%
     backtester = WalkForwardBacktester(
         initial_capital=100_000.0,
         impact_model=impact_model,
@@ -99,10 +99,11 @@ def main():
     )
 
     # 4. Ejecución del Funnel Ventana por Ventana
-    print("\n[3/5] Ejecutando Funnel Cuantitativo (SSD -> Econometría -> Kalman -> Riesgo)...")
+    print("\n[3/5] Ejecutando Funnel Cuantitativo (SSD -> Econometría FDR=0.25 -> Kalman -> Riesgo)...")
     summary_records = []
     window_logs = []
     all_candidates_audit = []
+    all_trades_records = []
 
     for w_idx, (df_formation, df_trading) in enumerate(splits):
         f_start = df_formation.index[0].strftime("%Y-%m-%d")
@@ -114,17 +115,16 @@ def main():
         print(f"    Formación (IS) : {f_start} -> {f_end} ({len(df_formation)} barras)")
         print(f"    Trading (OOS)  : {t_start} -> {t_end} ({len(df_trading)} barras)")
 
-        # Paso 1: Preselección por Diferencia SSD en log-precios estandarizados
+        # Paso 1: Preselección por Diferencia SSD
         candidates_df = preselector.select_top_candidates(df_formation)
         candidate_pairs = [
             (row["asset_a"], row["asset_b"]) for _, row in candidates_df.iterrows()
         ]
         print(f"    [Funnel 1] Pares preseleccionados por SSD: {len(candidate_pairs)} de {total_combinations}")
 
-        # Paso 2: Validación Econométrica Rigurosa (Cointegración + OU Half-Life + FDR)
+        # Paso 2: Validación Econométrica Relajada (p-val <= 0.25, FDR <= 0.25)
         validated_df = validator.validate_candidate_pairs(df_formation, candidate_pairs)
-        
-        # Enriquecer con correlación y SSD para auditoría completa
+
         if not validated_df.empty:
             merged_candidates = validated_df.merge(
                 candidates_df[["asset_a", "asset_b", "ssd", "correlation"]],
@@ -136,7 +136,7 @@ def main():
 
         approved_pairs = validated_df[validated_df["is_valid_pair"]] if not validated_df.empty else pd.DataFrame()
         n_approved = len(approved_pairs)
-        print(f"    [Funnel 2] Pares validados (Cointegración + Half-Life + FDR): {n_approved}")
+        print(f"    [Funnel 2] Pares validados (FDR=0.25): {n_approved}")
 
         # Registrar candidatos evaluados en esta ventana
         if not merged_candidates.empty:
@@ -144,14 +144,14 @@ def main():
                 pair_key = f"{cand_row['asset_a']}_{cand_row['asset_b']}"
                 rej_reasons = []
                 if not cand_row["is_cointegrated"]:
-                    rej_reasons.append(f"p-val={cand_row['p_value']:.4f}>0.05")
+                    rej_reasons.append(f"p-val={cand_row['p_value']:.4f}>0.25")
                 if not cand_row["is_half_life_valid"]:
                     rej_reasons.append(f"HL={cand_row['half_life']:.1f}d no en [{validator.min_half_life}, {validator.max_half_life}]")
                 if not cand_row["fdr_approved"]:
-                    rej_reasons.append("Rechazado por FDR Benjamini-Hochberg")
-                
+                    rej_reasons.append("Rechazado por FDR (alpha=0.25)")
+
                 status_str = "APROBADO" if cand_row["is_valid_pair"] else "RECHAZADO (" + ", ".join(rej_reasons) + ")"
-                
+
                 all_candidates_audit.append({
                     "window": w_idx + 1,
                     "formation_period": f"{f_start} a {f_end}",
@@ -169,7 +169,6 @@ def main():
                     "status": status_str
                 })
 
-        # Mostrar en consola los top candidatos evaluados
         if not merged_candidates.empty:
             print("    [Auditoría Candidatos Top IS]:")
             for _, c_row in merged_candidates.head(3).iterrows():
@@ -181,7 +180,7 @@ def main():
                 print(f"      - {p_label:<10} | Corr: {corr_lbl:>5} | p-val: {p_val_lbl:>6} | HL: {hl_lbl:>6} -> {stat_lbl}")
 
         w_record = {
-            "window": w_idx,
+            "window": w_idx + 1,
             "formation_start": f_start,
             "formation_end": f_end,
             "trading_start": t_start,
@@ -231,7 +230,8 @@ def main():
                     prices_a=p_a_oos,
                     prices_b=p_b_oos,
                     signals=signals_df["position"],
-                    hedge_ratio=kalman_df["beta"]
+                    hedge_ratio=kalman_df["beta"],
+                    signals_exit_reasons=signals_df["exit_reason"]
                 )
 
                 # Evaluación de Métricas con PerformanceEvaluator
@@ -251,18 +251,37 @@ def main():
 
                 print(f"      * Par: {pair_name:<10} | p-val: {coint_p:.4f} | HL: {hl:.1f}d | Trades: {n_trades} | Ret Neto: {ret_net:>7.2%} | Sharpe: {sharpe:>5.2f} | MaxDD: {max_dd:>7.2%}")
 
-                # Log de trades individuales si los hubo
+                # Log de trades individuales y acumulación para auditoría
                 if not trades_df.empty:
                     for _, tr in trades_df.iterrows():
                         d_in = str(tr["entry_date"])[:10]
                         d_out = str(tr["exit_date"])[:10]
                         dr = tr["direction"]
                         pnl = float(tr.get("pnl_net", 0.0))
+                        ret_p = float(tr.get("return_pct", 0.0))
                         reason = tr.get("exit_reason", "none")
-                        print(f"        -> Trade: {dr} | {d_in} a {d_out} | PnL: ${pnl:>9.2f} | Salida: {reason}")
+                        print(f"        -> Trade: {dr} | {d_in} a {d_out} | PnL: ${pnl:>9.2f} ({ret_p:>6.2%}) | Salida: {reason}")
+
+                        all_trades_records.append({
+                            "window": w_idx + 1,
+                            "pair": pair_name,
+                            "direction": dr,
+                            "entry_date": d_in,
+                            "exit_date": d_out,
+                            "entry_price_a": tr.get("entry_price_a"),
+                            "entry_price_b": tr.get("entry_price_b"),
+                            "exit_price_a": tr.get("exit_price_a"),
+                            "exit_price_b": tr.get("exit_price_b"),
+                            "shares_a": tr.get("shares_a"),
+                            "shares_b": tr.get("shares_b"),
+                            "initial_notional": tr.get("initial_notional"),
+                            "pnl_net": pnl,
+                            "return_pct": ret_p,
+                            "exit_reason": reason
+                        })
 
                 summary_records.append({
-                    "window": w_idx,
+                    "window": w_idx + 1,
                     "pair": pair_name,
                     "coint_pvalue": coint_p,
                     "half_life": hl,
@@ -280,28 +299,37 @@ def main():
         window_logs.append(w_record)
 
     # 5. Exportación y Resumen Consolidado
-    print("\n[4/5] Exportando resultados consolidados...")
-    output_csv = "results/walk_forward_real_universe.csv"
-    output_json = "results/walk_forward_real_universe.json"
-    audit_csv = "results/real_universe_candidates_audit.csv"
+    print("\n[4/5] Exportando resultados consolidados de Experimento A...")
+    output_csv = "results/walk_forward_exp_A_fdr25.csv"
+    output_json = "results/walk_forward_exp_A_fdr25.json"
+    audit_csv = "results/exp_A_candidates_audit.csv"
+    trades_csv = "results/trades_exp_A_fdr25.csv"
 
     if all_candidates_audit:
         pd.DataFrame(all_candidates_audit).to_csv(audit_csv, index=False)
-        print(f"      Auditoría detallada de candidatos guardada en: {audit_csv} ({len(all_candidates_audit)} pares evaluados)")
+        print(f"      Auditoría de candidatos guardada en: {audit_csv} ({len(all_candidates_audit)} pares evaluados)")
 
     if summary_records:
         df_summary = pd.DataFrame(summary_records)
         df_summary.to_csv(output_csv, index=False)
-        print(f"      Archivo CSV generado exitosamente: {output_csv}")
+        print(f"      Archivo CSV de ventanas generado: {output_csv}")
     else:
-        print("      No se generaron trades en el universo durante el periodo analizado.")
+        print("      No se generaron registros de ventanas operadas.")
         pd.DataFrame().to_csv(output_csv, index=False)
+
+    if all_trades_records:
+        df_trades_all = pd.DataFrame(all_trades_records)
+        df_trades_all.to_csv(trades_csv, index=False)
+        print(f"      Registro de operaciones detalladas guardado en: {trades_csv} ({len(df_trades_all)} trades)")
+    else:
+        print("      No se ejecutaron operaciones en las ventanas OOS.")
+        pd.DataFrame().to_csv(trades_csv, index=False)
 
     with open(output_json, "w") as f:
         json.dump(window_logs, f, indent=2)
     print(f"      Archivo JSON detallado: {output_json}")
 
-    print("\n[5/5] Resumen Global del Backtest Real:")
+    print("\n[5/5] Resumen Global del Experimento A (Prueba de Estrés):")
     if summary_records:
         df_sum = pd.DataFrame(summary_records)
         total_trades = df_sum["trades"].sum()
@@ -313,8 +341,14 @@ def main():
         print(f"      Sharpe promedio OOS              : {avg_sharpe:.2f}")
         print(f"      Peor Drawdown registrado         : {max_dd_overall:.2%}")
 
+    if all_trades_records:
+        df_tr = pd.DataFrame(all_trades_records)
+        print("\n      Distribución de Motivos de Salida (exit_reason):")
+        for reason, count in df_tr["exit_reason"].value_counts().items():
+            print(f"        - {reason:<22}: {count:>3} trades ({count / len(df_tr):.1%})")
+
     print("\n" + "=" * 78)
-    print("BACKTEST REAL FINALIZADO CON ÉXITO")
+    print("EXPERIMENTO A FINALIZADO CON ÉXITO")
     print("=" * 78)
 
 
