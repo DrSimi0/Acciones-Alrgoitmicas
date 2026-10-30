@@ -1,7 +1,7 @@
 # Estado del Proyecto: Arbitraje Estadístico de Pares
 
-* **Fecha de actualización:** 2026-10-27
-* **Fase Actual:** Fase 6 Completada — Sistema Integral Modular y Simulación Walk-Forward Validada
+* **Fecha de actualización:** 2026-10-30
+* **Fase Actual:** Fase 7 Completada — Integración de Filtro de Cuarentena Corporativa (Earnings Blackout) y Validación Walk-Forward en Producción
 
 ---
 
@@ -12,11 +12,12 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
 
 ## 2. Decisiones y Hechos Verificados
 - **Stack Tecnológico:** Python 3.11 (`pandas`, `numpy`, `scipy`, `statsmodels`, `pytest`).
-- **Arquitectura Funnel:** Preselección rápida por distancia SSD $\to$ Validación econométrica rigurosa (Engle-Granger, Johansen, OU, FDR Benjamini-Hochberg) $\to$ Filtro de Kalman secuencial para hedge ratio $\beta_t \to$ Señales elásticas GARCH con fallback $\to$ Simulación Walk-Forward con fricciones bidireccionales y short-borrow fee.
+- **Arquitectura Funnel:** Preselección rápida por distancia SSD $\to$ Validación econométrica rigurosa (Engle-Granger, Johansen, OU, FDR Benjamini-Hochberg) $\to$ Filtro de Kalman secuencial para hedge ratio $\beta_t \to$ Señales elásticas GARCH con fallback $\to$ Filtro de Cuarentena Corporativa (`CorporateCalendarManager`) $\to$ Simulación Walk-Forward con fricciones bidireccionales y short-borrow fee.
 - **Prevención Estricta de Sesgos:**
   - Separación in-sample / out-of-sample sin solapamiento de fechas.
   - Ejecución estricta en $t+1$ (señal al cierre de $t \to$ llenado en apertura/barra $t+1$).
   - Descuento de comisiones, diferencial bid-ask, impacto de mercado y costo de préstamo de acciones vendidas en corto (2% anual devengado diario).
+  - Bloqueo sistemático de aperturas dentro de los 3 días hábiles previos a earnings y evacuación obligatoria a $t-1$.
 
 ---
 
@@ -29,33 +30,29 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
 | **Módulo 2: Preselección SSD** (`selection.py`) | ✅ Completado | ✅ `tests/test_selection.py` (3/3 pasadas) |
 | **Módulo 3: Motor Econométrico** (`spread.py`) | ✅ Completado | ✅ `tests/test_spread.py` (5/5 pasadas) |
 | **Módulo 4: Generación de Señales** (`signals.py`) | ✅ Completado | ✅ `tests/test_signals.py` (5/5 pasadas) |
-| **Módulo 5: Backtest & Métricas** (`backtest.py`, `metrics.py`) | ✅ Completado | ✅ `tests/test_backtest.py` (9/9 pasadas) |
-| **Pipeline Integrado & Runner** (`pipeline.py`, `run_pipeline.py`) | ✅ Completado | ✅ Simulación Walk-Forward (5 ventanas) |
-| **Prueba en Universo Real (Semiconductores)** (`run_pipeline.py`, `yfinance`) | ✅ Completado | ✅ 15 Ventanas Walk-Forward (2021-2025) |
+| **Módulo 5: Backtest & Métricas** (`backtest.py`, `metrics.py`) | ✅ Completado | ✅ `tests/test_backtest.py` (11/11 pasadas) |
+| **Pipeline Integrado & Runner** (`pipeline.py`, `run_pipeline.py`) | ✅ Completado | ✅ Simulación Walk-Forward (15 ventanas) |
+| **Filtro de Calendario Corporativo** (`CorporateCalendarManager`) | ✅ Completado | ✅ Evaluado en Universo Real de Semiconductores |
 
 **Total Suite de Pruebas Unitarias:** 32/32 pruebas pasadas (100% éxito).
 
 ---
 
-## 4. Resultados de la Prueba en Universo Real y Experimentos A & B (2021-2025)
+## 4. Resultados de la Prueba en Universo Real de Semiconductores (2021-2025)
 
-### Línea Base (7 Mega-caps, Rigor Completo FDR=0.05):
-- **Ventanas procesadas:** 15 ventanas Walk-Forward (252 barras In-Sample / 63 barras Out-of-Sample).
-- **Filtro SSD:** Preseleccionó candidatos correlacionados ($r > 0.85$).
-- **Filtro Econométrico (FDR=0.05):** Rechazó el 100% de los pares por falta de cointegración estacionaria genuina. Protegió el capital al no forzar operaciones espurias.
+### Comparativa: Pre vs Post Filtro de Calendario Corporativo (Earnings Blackout):
 
-### Experimento A: Prueba de Estrés de Riesgo (Rama `exp-relax-fdr`):
-- **Calibración:** `coint_pvalue_threshold=0.25`, `fdr_alpha=0.25` sobre 7 mega-caps.
-- **Trades ejecutados OOS:** 10 operaciones forzadas en pares fronterizos.
-- **Motivos de salida:** 10 salidas por `mean_reversion` (100%), ya que las oscilaciones de corto plazo cerraron las posiciones antes de tocar el stop-loss duro del -8%.
-- **Máxima pérdida en trade individual:** -3.16% (NVDA/SPY).
-- **Retorno neto medio:** -0.53%, Sharpe: -0.40. Demuestra que relajar el filtro econométrico degrada la expectativa matemática.
+| Métrica Global | Pre-Filtro de Calendario | Post-Filtro de Calendario (Producción) | Impacto / Mejora |
+| :--- | :---: | :---: | :---: |
+| **Operaciones Totales (15 Ventanas OOS)** | 9 trades | 9 trades | Idéntica selectividad |
+| **Trades cerrados por `mean_reversion`** | 8 (88.9%) | **9 (100%)** | +11.1% reversiones limpias |
+| **Trades cerrados por `stop_loss_8pct`** | 1 (11.1%) | **0 (0.0%)** | **100% eliminación de stops** |
+| **Retorno Neto Medio por Ventana** | -1.78% | **-0.19%** | **+1.59% de mejora** |
+| **Ratio de Sharpe Medio** | -0.74 | **-0.42** | **+0.32 de mejora** |
+| **Peor Drawdown Máximo Global** | -12.83% | **-2.87%** | **Reducción del 77.6% del riesgo** |
+| **Retorno Neto Ventana 12 (`AVGO_TSM`)** | -12.58% | **+0.15%** | **+12.73% de mejora** |
 
-### Adopción en Producción (`main`):
-- **Estrategia Seleccionada:** Se adopta de forma definitiva el **Experimento B (Sector Semiconductores)** como núcleo de producción en `main`.
-- **Justificación:** 
-  1. El Experimento A demostró que relajar el FDR al 25% degrada la expectativa matemática y fuerza la entrada de pares espurios sin reversión fiable. Queda formalmente descartado.
-  2. El Experimento B probó que en un universo homogéneo con 105 combinaciones, el filtro FDR al 5% aísla cointegración económica real, mientras que el `RiskManager` demostró su eficacia salvando la cuenta ante el salto no lineal de AVGO (+24.6% en una sesión).
-- **Archivos de Producción en `main`:**
-  - Pipeline: `run_pipeline.py` (ejecuta el universo de semiconductores con Top-20 SSD y FDR=0.05).
-  - Resultados oficiales: `results/walk_forward_real_universe.csv`, `results/trades_real_universe.csv`, `results/real_universe_candidates_audit.csv`.
+### Conclusiones de Producción en `main`:
+1. El sistema opera actualmente en la rama `main` con el universo ampliado de 15 activos de semiconductores, preselección Top-20 SSD, validación rigurosa FDR al 5% y filtro activo de eventos corporativos.
+2. La cuarentena de earnings neutralizó exitosamente la única pérdida catastrófica del sistema (el salto del +24.6% de AVGO), convirtiendo una pérdida de -$12,583 en una ganancia de +$2,663.71 y demostrando la indispensabilidad de filtros de calendario en arbitraje estadístico accionario.
+

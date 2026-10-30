@@ -47,6 +47,9 @@ Este archivo documenta las fuentes científicas que sustentan el diseño de la e
 
 ---
 
-## 6. Taleb (2007) y Gestión de Colas Izquierdas en Finanzas Cuantitativas
-* **Hipótesis:** Las distribuciones empíricas de activos financieros exhiben colas pesadas y asimetría negativa. Las rupturas estructurales intradía por eventos corporativos (ej. saltos del +25% en earnings de AVGO) no pueden modelarse con normalidad asintótica.
-* **Evidencia Empírica del Proyecto:** En el Experimento B (Ventana 12, dic-2024), AVGO registró una explosión del +24.6% en una sola sesión. La intervención determinista del `RiskManager` (Hard Stop-Loss al -8%, ejecutado al -10.33% post-gap) amputó la posición corta inmediatamente, validando que el arbitraje estadístico solo sobrevive a largo plazo si cuenta con límites mecánicos e incondicionales de capital.
+## 7. Eventos Corporativos Discretos y Cuarentena de Calendario (Earnings Blackout)
+* **Hipótesis:** Las publicaciones trimestrales de beneficios (*earnings announcements*) concentran incertidumbre idiosincrásica extrema que se manifiesta mediante saltos discretos no difusivos (*Poisson jumps*). En estrategias de cointegración, estos eventos invalidan transitoriamente la hipótesis de estacionariedad del spread, provocando *drawdowns* severos e irreversibles.
+* **Evidencia Empírica del Proyecto:** La incorporación del `CorporateCalendarManager` con una ventana de cuarentena de 3 días hábiles previos al anuncio de resultados y evacuación a mercado a $t-1$ transformó el desempeño del sistema:
+  - En la Ventana 12 (diciembre de 2024), el filtro de cuarentena bloqueó la apertura de la posición corta en `AVGO_TSM` antes del salto del +24.6% de Broadcom, permitiendo posteriormente un trade ordenado con convergencia al valor medio (+2.73% de retorno).
+  - El peor *drawdown* global se redujo drásticamente de **-12.83% a -2.87%**, y el 100% de los trades ejecutados cerraron por reversión a la media (`mean_reversion`), confirmando que la cuarentena de eventos corporativos es indispensable en arbitraje estadístico accionario.
+

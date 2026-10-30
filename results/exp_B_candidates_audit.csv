@@ -7,7 +7,7 @@ window,formation_period,trading_period,pair,correlation,ssd,coint_stat,p_value,h
 1,2021-01-04 a 2021-12-31,2022-01-03 a 2022-04-01,AVGO_KLAC,0.9103,45.04,-3.6906,0.0188,18.95,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 1,2021-01-04 a 2021-12-31,2022-01-03 a 2022-04-01,AMD_KLAC,0.8528,73.89,-3.3663,0.0462,9.84,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 1,2021-01-04 a 2021-12-31,2022-01-03 a 2022-04-01,KLAC_NVDA,0.8715,64.5,-3.1291,0.0826,8.37,False,True,False,False,"RECHAZADO (p-val=0.0826>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
-1,2021-01-04 a 2021-12-31,2022-01-03 a 2022-04-01,ASML_TXN,0.8703,65.12,-3.0613,0.0963,9.21,False,True,False,False,"RECHAZADO (p-val=0.0963>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
+1,2021-01-04 a 2021-12-31,2022-01-03 a 2022-04-01,ASML_TXN,0.8703,65.12,-3.0613,0.0964,9.21,False,True,False,False,"RECHAZADO (p-val=0.0964>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 1,2021-01-04 a 2021-12-31,2022-01-03 a 2022-04-01,ADI_MRVL,0.8707,64.91,-3.0291,0.1035,9.47,False,True,False,False,"RECHAZADO (p-val=0.1035>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 1,2021-01-04 a 2021-12-31,2022-01-03 a 2022-04-01,ADI_ASML,0.8571,71.75,-2.8008,0.1654,10.95,False,True,False,False,"RECHAZADO (p-val=0.1654>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 1,2021-01-04 a 2021-12-31,2022-01-03 a 2022-04-01,MRVL_NVDA,0.9298,35.22,-2.6407,0.2216,15.71,False,True,False,False,"RECHAZADO (p-val=0.2216>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
@@ -23,7 +23,7 @@ window,formation_period,trading_period,pair,correlation,ssd,coint_stat,p_value,h
 2,2021-04-06 a 2022-04-01,2022-04-04 a 2022-07-05,AMAT_NXPI,0.8385,81.09,-3.6373,0.022,6.58,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 2,2021-04-06 a 2022-04-01,2022-04-04 a 2022-07-05,KLAC_MRVL,0.8575,71.53,-3.3365,0.0499,10.9,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 2,2021-04-06 a 2022-04-01,2022-04-04 a 2022-07-05,KLAC_NVDA,0.8458,77.38,-3.2572,0.0609,9.78,False,True,False,False,"RECHAZADO (p-val=0.0609>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
-2,2021-04-06 a 2022-04-01,2022-04-04 a 2022-07-05,AMD_MRVL,0.9342,33.02,-3.2426,0.0631,12.14,False,True,False,False,"RECHAZADO (p-val=0.0631>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
+2,2021-04-06 a 2022-04-01,2022-04-04 a 2022-07-05,AMD_MRVL,0.9342,33.02,-3.2427,0.0631,12.14,False,True,False,False,"RECHAZADO (p-val=0.0631>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 2,2021-04-06 a 2022-04-01,2022-04-04 a 2022-07-05,AMAT_KLAC,0.8276,86.52,-3.0726,0.0939,8.07,False,True,False,False,"RECHAZADO (p-val=0.0939>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 2,2021-04-06 a 2022-04-01,2022-04-04 a 2022-07-05,ADI_ASML,0.8028,99.0,-3.0391,0.1012,9.2,False,True,False,False,"RECHAZADO (p-val=0.1012>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 2,2021-04-06 a 2022-04-01,2022-04-04 a 2022-07-05,MRVL_NVDA,0.9472,26.51,-2.907,0.134,10.69,False,True,False,False,"RECHAZADO (p-val=0.1340>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
@@ -168,7 +168,7 @@ window,formation_period,trading_period,pair,correlation,ssd,coint_stat,p_value,h
 9,2023-01-04 a 2024-01-04,2024-01-05 a 2024-04-05,AMD_AVGO,0.8931,53.69,-2.9335,0.1269,11.43,False,True,False,False,"RECHAZADO (p-val=0.1269>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 9,2023-01-04 a 2024-01-04,2024-01-05 a 2024-04-05,AVGO_KLAC,0.9431,28.59,-2.9285,0.1282,10.13,False,True,False,False,"RECHAZADO (p-val=0.1282>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 9,2023-01-04 a 2024-01-04,2024-01-05 a 2024-04-05,KLAC_MU,0.8963,52.03,-2.902,0.1354,9.87,False,True,False,False,"RECHAZADO (p-val=0.1354>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
-9,2023-01-04 a 2024-01-04,2024-01-05 a 2024-04-05,AVGO_MU,0.8821,59.21,-2.8133,0.1615,10.73,False,True,False,False,"RECHAZADO (p-val=0.1615>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
+9,2023-01-04 a 2024-01-04,2024-01-05 a 2024-04-05,AVGO_MU,0.8821,59.21,-2.8134,0.1615,10.73,False,True,False,False,"RECHAZADO (p-val=0.1615>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 9,2023-01-04 a 2024-01-04,2024-01-05 a 2024-04-05,AVGO_INTC,0.8892,55.61,-2.772,0.1748,15.96,False,True,False,False,"RECHAZADO (p-val=0.1748>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 9,2023-01-04 a 2024-01-04,2024-01-05 a 2024-04-05,LRCX_NVDA,0.9365,31.87,-2.7518,0.1815,10.71,False,True,False,False,"RECHAZADO (p-val=0.1815>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 9,2023-01-04 a 2024-01-04,2024-01-05 a 2024-04-05,INTC_KLAC,0.8954,52.49,-2.5864,0.2423,14.71,False,True,False,False,"RECHAZADO (p-val=0.2423>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
@@ -184,7 +184,7 @@ window,formation_period,trading_period,pair,correlation,ssd,coint_stat,p_value,h
 10,2023-04-05 a 2024-04-05,2024-04-08 a 2024-07-08,AVGO_KLAC,0.9809,9.59,-3.4541,0.0367,7.2,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 10,2023-04-05 a 2024-04-05,2024-04-08 a 2024-07-08,AVGO_LRCX,0.974,13.04,-3.1447,0.0797,8.67,False,True,False,False,"RECHAZADO (p-val=0.0797>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 10,2023-04-05 a 2024-04-05,2024-04-08 a 2024-07-08,LRCX_NVDA,0.9685,15.83,-2.8498,0.1504,10.92,False,True,False,False,"RECHAZADO (p-val=0.1504>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
-10,2023-04-05 a 2024-04-05,2024-04-08 a 2024-07-08,AMD_AVGO,0.9294,35.46,-2.5894,0.2411,12.75,False,True,False,False,"RECHAZADO (p-val=0.2411>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
+10,2023-04-05 a 2024-04-05,2024-04-08 a 2024-07-08,AMD_AVGO,0.9294,35.46,-2.5895,0.2411,12.75,False,True,False,False,"RECHAZADO (p-val=0.2411>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 10,2023-04-05 a 2024-04-05,2024-04-08 a 2024-07-08,KLAC_LRCX,0.9894,5.31,-2.5427,0.2606,12.1,False,True,False,False,"RECHAZADO (p-val=0.2606>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 10,2023-04-05 a 2024-04-05,2024-04-08 a 2024-07-08,AMD_ASML,0.9226,38.87,-2.4558,0.2989,14.04,False,True,False,False,"RECHAZADO (p-val=0.2989>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 10,2023-04-05 a 2024-04-05,2024-04-08 a 2024-07-08,KLAC_NVDA,0.9647,17.74,-2.4517,0.3008,13.69,False,True,False,False,"RECHAZADO (p-val=0.3008>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
@@ -221,7 +221,7 @@ window,formation_period,trading_period,pair,correlation,ssd,coint_stat,p_value,h
 11,2023-07-07 a 2024-07-08,2024-07-09 a 2024-10-04,KLAC_LRCX,0.981,9.54,-1.594,0.7234,30.43,False,False,False,False,"RECHAZADO (p-val=0.7234>0.05, HL=30.4d no en [2.0, 30.0], Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,NVDA_TSM,0.99,5.04,-4.7322,0.0005,4.85,True,True,True,True,APROBADO
 12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,AVGO_TSM,0.9741,13.01,-4.5213,0.0011,6.08,True,True,True,True,APROBADO
-12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,KLAC_NVDA,0.9718,14.15,-4.1673,0.0041,5.42,True,True,True,True,APROBADO
+12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,KLAC_NVDA,0.9718,14.15,-4.1672,0.0041,5.42,True,True,True,True,APROBADO
 12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,NXPI_QCOM,0.9561,22.02,-3.5382,0.0292,6.92,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,ASML_LRCX,0.9719,14.1,-3.4843,0.0338,8.39,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,AVGO_NVDA,0.9575,21.35,-3.2564,0.061,10.36,False,True,False,False,"RECHAZADO (p-val=0.0610>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
@@ -237,8 +237,8 @@ window,formation_period,trading_period,pair,correlation,ssd,coint_stat,p_value,h
 12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,KLAC_NXPI,0.9226,38.85,-1.981,0.5384,18.2,False,True,False,False,"RECHAZADO (p-val=0.5384>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,AVGO_KLAC,0.9677,16.22,-1.7242,0.6658,12.97,False,True,False,False,"RECHAZADO (p-val=0.6658>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,KLAC_QCOM,0.9485,25.87,-1.5829,0.728,26.96,False,True,False,False,"RECHAZADO (p-val=0.7280>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
-12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,AMAT_KLAC,0.9475,26.37,-0.8412,0.9291,62.87,False,False,False,False,"RECHAZADO (p-val=0.9291>0.05, HL=62.9d no en [2.0, 30.0], Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
-12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,AMAT_LRCX,0.9415,29.37,0.0552,0.9871,190.69,False,False,False,False,"RECHAZADO (p-val=0.9871>0.05, HL=190.7d no en [2.0, 30.0], Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
+12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,AMAT_KLAC,0.9475,26.37,-0.8412,0.9291,62.86,False,False,False,False,"RECHAZADO (p-val=0.9291>0.05, HL=62.9d no en [2.0, 30.0], Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
+12,2023-10-05 a 2024-10-04,2024-10-07 a 2025-01-06,AMAT_LRCX,0.9415,29.37,0.0552,0.9871,190.68,False,False,False,False,"RECHAZADO (p-val=0.9871>0.05, HL=190.7d no en [2.0, 30.0], Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 13,2024-01-05 a 2025-01-06,2025-01-07 a 2025-04-08,NVDA_TSM,0.9767,11.68,-3.9118,0.0096,5.2,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 13,2024-01-05 a 2025-01-06,2025-01-07 a 2025-04-08,AMAT_NXPI,0.9135,43.43,-3.7208,0.0172,6.29,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 13,2024-01-05 a 2025-01-06,2025-01-07 a 2025-04-08,ASML_LRCX,0.9346,32.83,-3.2302,0.065,10.14,False,True,False,False,"RECHAZADO (p-val=0.0650>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
@@ -283,7 +283,7 @@ window,formation_period,trading_period,pair,correlation,ssd,coint_stat,p_value,h
 15,2024-07-09 a 2025-07-10,2025-07-11 a 2025-10-08,MU_TXN,0.7955,102.67,-3.9307,0.009,7.42,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 15,2024-07-09 a 2025-07-10,2025-07-11 a 2025-10-08,AMAT_AMD,0.8907,54.84,-3.8964,0.01,7.26,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 15,2024-07-09 a 2025-07-10,2025-07-11 a 2025-10-08,ASML_NXPI,0.7579,121.55,-3.7235,0.0171,9.71,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
-15,2024-07-09 a 2025-07-10,2025-07-11 a 2025-10-08,AMAT_NXPI,0.9025,48.94,-3.6774,0.0196,5.72,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
+15,2024-07-09 a 2025-07-10,2025-07-11 a 2025-10-08,AMAT_NXPI,0.9025,48.94,-3.6773,0.0196,5.72,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 15,2024-07-09 a 2025-07-10,2025-07-11 a 2025-10-08,NXPI_QCOM,0.8824,59.04,-3.3694,0.0459,7.77,True,True,False,False,RECHAZADO (Rechazado por FDR Benjamini-Hochberg (alpha=0.05))
 15,2024-07-09 a 2025-07-10,2025-07-11 a 2025-10-08,ADI_TXN,0.9073,46.52,-3.2806,0.0574,8.34,False,True,False,False,"RECHAZADO (p-val=0.0574>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"
 15,2024-07-09 a 2025-07-10,2025-07-11 a 2025-10-08,ADI_LRCX,0.7521,124.46,-3.2416,0.0632,8.64,False,True,False,False,"RECHAZADO (p-val=0.0632>0.05, Rechazado por FDR Benjamini-Hochberg (alpha=0.05))"

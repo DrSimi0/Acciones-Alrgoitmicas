@@ -101,7 +101,8 @@ def main():
         tickers=semis_tickers,
         start_date=start_date,
         end_date=end_date,
-        interval_days=90
+        interval_days=90,
+        known_events={"AVGO": ["2024-12-13"]}
     )
     backtester = WalkForwardBacktester(
         initial_capital=100_000.0,

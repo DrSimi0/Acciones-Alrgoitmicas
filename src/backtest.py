@@ -196,7 +196,8 @@ class CorporateCalendarManager:
         tickers: List[str],
         start_date: str = "2021-01-01",
         end_date: str = "2025-12-31",
-        interval_days: int = 90
+        interval_days: int = 90,
+        known_events: Optional[Dict[str, List[Any]]] = None
     ) -> "CorporateCalendarManager":
         """
         Genera un calendario corporativo trimestral determinista decalado por activo
@@ -221,6 +222,16 @@ class CorporateCalendarManager:
                     current_event += pd.Timedelta(days=1)
                 schedule[tick_key].append(current_event.normalize())
                 current_event += pd.Timedelta(days=interval_days)
+
+        # Integrar eventos corporativos conocidos si se suministran
+        if known_events is not None:
+            for t_k, dates_list in known_events.items():
+                k_key = t_k.upper()
+                if k_key not in schedule:
+                    schedule[k_key] = []
+                for kd in dates_list:
+                    schedule[k_key].append(pd.Timestamp(kd).normalize())
+                schedule[k_key] = sorted(list(set(schedule[k_key])))
 
         return cls(earnings_dates=schedule)
 
