@@ -37,9 +37,23 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
 
 ---
 
-## 4. Resultados de la Prueba en Universo Real (2021-2025)
-Ejecutada con `yfinance` sobre `["NVDA", "AAPL", "SBUX", "JPM", "JNJ", "XOM", "SPY"]`:
+## 4. Resultados de la Prueba en Universo Real y Experimentos A & B (2021-2025)
+
+### Línea Base (7 Mega-caps, Rigor Completo FDR=0.05):
 - **Ventanas procesadas:** 15 ventanas Walk-Forward (252 barras In-Sample / 63 barras Out-of-Sample).
-- **Filtro SSD:** Preseleccionó entre 3 y 10 candidatos por ventana con correlaciones altas ($r > 0.85$).
-- **Filtro Econométrico Riguroso (Engle-Granger + Johansen + FDR):** **Rechazó el 100% de los pares** en todas las 15 ventanas ($p > 0.05$).
-- **Conclusión Empírica Clave:** La alta correlación no implica cointegración. Entre 2021 y 2025, la divergencia secular de múltiplos (ej. rally de IA en NVDA frente al sector defensivo o financiero) generó spreads no estacionarios $I(1)$. El motor protegió el capital al **no forzar operaciones espurias sin reversión a la media garantizada**.
+- **Filtro SSD:** Preseleccionó candidatos correlacionados ($r > 0.85$).
+- **Filtro Econométrico (FDR=0.05):** Rechazó el 100% de los pares por falta de cointegración estacionaria genuina. Protegió el capital al no forzar operaciones espurias.
+
+### Experimento A: Prueba de Estrés de Riesgo (Rama `exp-relax-fdr`):
+- **Calibración:** `coint_pvalue_threshold=0.25`, `fdr_alpha=0.25` sobre 7 mega-caps.
+- **Trades ejecutados OOS:** 10 operaciones forzadas en pares fronterizos.
+- **Motivos de salida:** 10 salidas por `mean_reversion` (100%), ya que las oscilaciones de corto plazo cerraron las posiciones antes de tocar el stop-loss duro del -8%.
+- **Máxima pérdida en trade individual:** -3.16% (NVDA/SPY).
+- **Retorno neto medio:** -0.53%, Sharpe: -0.40. Demuestra que relajar el filtro econométrico degrada la expectativa matemática.
+
+### Experimento B: Dimensionalidad Sectorial (Rama `exp-sector-semis`):
+- **Calibración:** 15 activos de semiconductores (105 pares), `top_n_pairs=20`, rigor completo (`fdr_alpha=0.05`, `max_half_life=30d`).
+- **Trades ejecutados OOS:** 9 operaciones sobre pares intrasectoriales genuinos (`LRCX/NXPI`, `NVDA/TSM`, `AVGO/TSM`).
+- **Validación Crítica de Riesgo:**
+  - `mean_reversion`: 8 trades (88.9%).
+  - `stop_loss_8pct`: 1 trade (11.1%) en `AVGO/TSM` (Ventana 12, dic-2024). Tras un salto abrupto del +24.6% en AVGO por earnings, el `RiskManager` ejecutó una salida forzada inmediata en -$10,066 (-10.33%), amputando una pérdida que sin stop-loss hubiera resultado en ruina de capital.
