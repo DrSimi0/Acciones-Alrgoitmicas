@@ -99,3 +99,17 @@ Este documento registra las decisiones técnicas clave, su contexto y sus justif
   3. Regresar cada activo contra los $K$ factores mediante OLS simultáneo para extraer la serie de retornos idiosincrásicos $\epsilon_{i,t}$ y el spread sintético acumulado $X_{i,t} = \sum_{s=1}^t \epsilon_{i,s}$.
   4. Extender `EconometricValidator` en `src/spread.py` con `test_residual_stationarity` (ADF) y `validate_pca_residuals` (ADF + Ornstein-Uhlenbeck + Benjamini-Hochberg FDR al 5%) para validar rigurosamente la reversión de cada residual individual sin minería de datos.
 * **Consecuencias:** Se establece el núcleo matemático para evolucionar de pairs trading a carteras sintéticas neutrales a mercado y a factores.
+
+---
+
+## ADR 010: Ejecución Simétrica Market-Neutral (Long/Short 50/50) y Pares Fijos Fundamentales
+* **Fecha:** 2026-11-01
+* **Estado:** Aceptado
+* **Contexto:**
+  1. En la asignación original proporcional a $1 / (1 + \beta)$, activos con $\beta > 1$ inducían una asimetría nocional que reducía la neutralidad en dólares del portafolio.
+  2. Evaluar universos masivos mediante preselección por distancia SSD puede omitir pares con lógica económica y competitiva directa evidente (ej. Coca-Cola vs Pepsi, Visa vs Mastercard, Chevron vs ExxonMobil).
+* **Decisión:**
+  1. Implementar `capital_allocation_mode="symmetric_50_50"` en `WalkForwardBacktester`: asignación exacta del 50% del capital al activo subvaluado (Long) y 50% al activo sobrevaluado (Short con ajuste de cobertura beta $\beta_t$).
+  2. Deducir formalmente el costo de préstamo de cortos (*short-borrow fee*) acumulado durante el ciclo de vida del trade directamente en su PnL neto individual y registrar el desglose por patas (`pnl_leg_a` y `pnl_leg_b`).
+  3. Crear `run_fixed_pairs_pipeline()` en `run_pipeline.py` para evaluar pares de competidores directos omitiendo el filtro SSD, inyectándolos de forma directa al validador econométrico con control FDR al 5% y al filtro de calendario corporativo.
+* **Consecuencias:** Neutralidad nocional robusta, contabilidad de caja y préstamo de cortos exacta por trade, y capacidad de contrastar hipótesis fundamentales directas sin dependencia de minería de distancia.

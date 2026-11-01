@@ -31,12 +31,13 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
 | **Módulo 2: Preselección SSD** (`selection.py`) | ✅ Completado | ✅ `tests/test_selection.py` (3/3 pasadas) |
 | **Módulo 3: Motor Econométrico** (`spread.py`) | ✅ Completado | ✅ `tests/test_spread.py` (8/8 pasadas) |
 | **Módulo 4: Generación de Señales** (`signals.py`) | ✅ Completado | ✅ `tests/test_signals.py` (5/5 pasadas) |
-| **Módulo 5: Backtest & Métricas** (`backtest.py`, `metrics.py`) | ✅ Completado | ✅ `tests/test_backtest.py` (11/11 pasadas) |
+| **Módulo 5: Backtest & Métricas** (`backtest.py`, `metrics.py`) | ✅ Completado | ✅ `tests/test_backtest.py` (13/13 pasadas) |
 | **Módulo 6: Factores PCA Multivariado** (`pca_model.py`) | ✅ Completado | ✅ `tests/test_pca_model.py` (6/6 pasadas) |
 | **Pipeline Integrado & Runner** (`pipeline.py`, `run_pipeline.py`) | ✅ Completado | ✅ Simulación Walk-Forward (15 ventanas) |
 | **Filtro de Calendario Corporativo** (`CorporateCalendarManager`) | ✅ Completado | ✅ Evaluado en Universo Real de Semiconductores |
+| **Experimento Pares Fijos Long/Short** (`exp-cerrar-distancia-pares-definidos`) | ✅ Completado | ✅ 15 Ventanas OOS sobre 5 Pares Competidores |
 
-**Total Suite de Pruebas Unitarias:** 40/40 pruebas pasadas (100% éxito).
+**Total Suite de Pruebas Unitarias:** 42/42 pruebas pasadas (100% éxito).
 
 ---
 
@@ -53,6 +54,21 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
 | **Ratio de Sharpe Medio** | -0.74 | **-0.42** | **+0.32 de mejora** |
 | **Peor Drawdown Máximo Global** | -12.83% | **-2.87%** | **Reducción del 77.6% del riesgo** |
 | **Retorno Neto Ventana 12 (`AVGO_TSM`)** | -12.58% | **+0.15%** | **+12.73% de mejora** |
+
+---
+
+## 5. Experimento de Pares Fijos Fundamentales y Ejecución L/S 50/50 (Rama `exp-cerrar-distancia-pares-definidos`)
+
+- **Universo Evaluado (10 tickers, 5 pares):** `KO/PEP`, `V/MA`, `CVX/XOM`, `HD/LOW`, `UNP/CSX`.
+- **Diseño del Pipeline:** Omisión de preselección SSD (pares inyectados directamente al validador econométrico con rigor pleno: $p \le 0.05$, $HL \le 30$d, FDR $\alpha=0.05$).
+- **Asignación Simétrica 50/50:** 50% nocional al activo subvaluado (Long) y 50% al activo sobrevaluado (Short ajustado por $\beta_t$).
+- **Resultados Empíricos (15 ventanas Walk-Forward, 2021–2025):**
+  - **Ventana 2 (abril–julio 2022):** El par `CVX_XOM` superó el rigor econométrico pleno ($p = 0.0007$, Half-Life $= 27.7$ días).
+  - **Trades Ejecutados:** 2 operaciones out-of-sample en `CVX_XOM`, ambas cerradas con éxito por convergencia a la media (`mean_reversion`).
+  - **Trade 1 (Long Spread):** +$593.17 (+0.44% de retorno neto) tras deducir $39.65 de comisiones y $4.48 de préstamo de cortos.
+  - **Trade 2 (Short Spread):** -$269.77 (-0.20% de retorno neto) tras deducir $39.34 de comisiones y $5.50 de préstamo de cortos.
+  - **Métricas Globales de la Ventana:** Retorno neto: **+0.32%**, Sharpe: **0.35**, Max Drawdown: **-1.36%**, Win Rate: **50%**, Profit Factor: **2.20**.
+  - **Otras 14 ventanas:** El filtro FDR al 5% rechazó sistemáticamente los otros 4 pares por falta de cointegración estacionaria, protegiendo el capital de operar divergencias espurias en sectores cíclicos y defensivos.
 
 ### Conclusiones de Producción en `main`:
 1. El sistema opera actualmente en la rama `main` con el universo ampliado de 15 activos de semiconductores, preselección Top-20 SSD, validación rigurosa FDR al 5% y filtro activo de eventos corporativos.

@@ -1,0 +1,177 @@
+[
+  {
+    "window": 1,
+    "formation_start": "2021-01-04",
+    "formation_end": "2021-12-31",
+    "trading_start": "2022-01-03",
+    "trading_end": "2022-04-01",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 2,
+    "formation_start": "2021-04-06",
+    "formation_end": "2022-04-01",
+    "trading_start": "2022-04-04",
+    "trading_end": "2022-07-05",
+    "fixed_pairs": 5,
+    "validated_pairs": 1,
+    "trades": [
+      {
+        "pair": "CVX_XOM",
+        "direction": "LONG_SPREAD",
+        "entry": "2022-06-08",
+        "exit": "2022-06-09",
+        "pnl_net": 593.1736796590324,
+        "return_pct": 0.004441924936958961,
+        "pnl_leg_a": -1060.8708679035685,
+        "pnl_leg_b": 1698.1693384926095,
+        "borrow_fees": 4.476712906868651,
+        "exit_reason": "mean_reversion"
+      },
+      {
+        "pair": "CVX_XOM",
+        "direction": "SHORT_SPREAD",
+        "entry": "2022-06-30",
+        "exit": "2022-07-05",
+        "pnl_net": -269.7714062689845,
+        "return_pct": -0.0020448812939171932,
+        "pnl_leg_a": 671.5712370796459,
+        "pnl_leg_b": -896.4995247041428,
+        "borrow_fees": 5.500764477152397,
+        "exit_reason": "mean_reversion"
+      }
+    ]
+  },
+  {
+    "window": 3,
+    "formation_start": "2021-07-06",
+    "formation_end": "2022-07-05",
+    "trading_start": "2022-07-06",
+    "trading_end": "2022-10-03",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 4,
+    "formation_start": "2021-10-04",
+    "formation_end": "2022-10-03",
+    "trading_start": "2022-10-04",
+    "trading_end": "2023-01-03",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 5,
+    "formation_start": "2022-01-03",
+    "formation_end": "2023-01-03",
+    "trading_start": "2023-01-04",
+    "trading_end": "2023-04-04",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 6,
+    "formation_start": "2022-04-04",
+    "formation_end": "2023-04-04",
+    "trading_start": "2023-04-05",
+    "trading_end": "2023-07-06",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 7,
+    "formation_start": "2022-07-06",
+    "formation_end": "2023-07-06",
+    "trading_start": "2023-07-07",
+    "trading_end": "2023-10-04",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 8,
+    "formation_start": "2022-10-04",
+    "formation_end": "2023-10-04",
+    "trading_start": "2023-10-05",
+    "trading_end": "2024-01-04",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 9,
+    "formation_start": "2023-01-04",
+    "formation_end": "2024-01-04",
+    "trading_start": "2024-01-05",
+    "trading_end": "2024-04-05",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 10,
+    "formation_start": "2023-04-05",
+    "formation_end": "2024-04-05",
+    "trading_start": "2024-04-08",
+    "trading_end": "2024-07-08",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 11,
+    "formation_start": "2023-07-07",
+    "formation_end": "2024-07-08",
+    "trading_start": "2024-07-09",
+    "trading_end": "2024-10-04",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 12,
+    "formation_start": "2023-10-05",
+    "formation_end": "2024-10-04",
+    "trading_start": "2024-10-07",
+    "trading_end": "2025-01-06",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 13,
+    "formation_start": "2024-01-05",
+    "formation_end": "2025-01-06",
+    "trading_start": "2025-01-07",
+    "trading_end": "2025-04-08",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 14,
+    "formation_start": "2024-04-08",
+    "formation_end": "2025-04-08",
+    "trading_start": "2025-04-09",
+    "trading_end": "2025-07-10",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  },
+  {
+    "window": 15,
+    "formation_start": "2024-07-09",
+    "formation_end": "2025-07-10",
+    "trading_start": "2025-07-11",
+    "trading_end": "2025-10-08",
+    "fixed_pairs": 5,
+    "validated_pairs": 0,
+    "trades": []
+  }
+]

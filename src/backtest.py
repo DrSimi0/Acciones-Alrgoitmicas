@@ -305,7 +305,8 @@ class WalkForwardBacktester:
         impact_model: Optional[MarketImpactModel] = None,
         risk_manager: Optional[RiskManager] = None,
         calendar_manager: Optional[CorporateCalendarManager] = None,
-        max_leverage: float = 1.0
+        max_leverage: float = 1.0,
+        capital_allocation_mode: str = "symmetric_50_50"
     ):
         """
         Args:
@@ -314,12 +315,15 @@ class WalkForwardBacktester:
             risk_manager: Instancia de RiskManager para evaluar stop-loss por capital.
             calendar_manager: Instancia de CorporateCalendarManager para filtros de cuarentena y evacuación por earnings.
             max_leverage: Límite de apalancamiento bruto del portafolio.
+            capital_allocation_mode: Esquema de asignación nocional ('symmetric_50_50' para Long/Short Market-Neutral
+                                     simétrico o 'beta_weighted' para ponderación proporcional clásica).
         """
         self.initial_capital = initial_capital
         self.impact_model = impact_model if impact_model is not None else MarketImpactModel()
         self.risk_manager = risk_manager
         self.calendar_manager = calendar_manager
         self.max_leverage = max_leverage
+        self.capital_allocation_mode = capital_allocation_mode
 
     def simulate_pair(
         self,
@@ -405,6 +409,8 @@ class WalkForwardBacktester:
                     short_notional += abs(shares_b[t - 1] * p_b)
                 daily_borrow_cost = self.impact_model.compute_borrow_cost(short_notional, days=1.0)
                 cash -= daily_borrow_cost
+                if current_trade is not None:
+                    current_trade["borrow_fees"] = current_trade.get("borrow_fees", 0.0) + daily_borrow_cost
 
             borrow_fee_series[t] = daily_borrow_cost
 
@@ -491,8 +497,13 @@ class WalkForwardBacktester:
                         pnl_a = shares_a[t - 1] * (exec_a - current_trade["entry_price_a"])
                         pnl_b = shares_b[t - 1] * (exec_b - current_trade["entry_price_b"])
                         total_trade_comm = current_trade.get("entry_comm", 0.0) + comm
-                        pnl = pnl_a + pnl_b - total_trade_comm
+                        trade_borrow_fees = current_trade.get("borrow_fees", 0.0)
+                        pnl = pnl_a + pnl_b - total_trade_comm - trade_borrow_fees
 
+                        current_trade["pnl_leg_a"] = pnl_a
+                        current_trade["pnl_leg_b"] = pnl_b
+                        current_trade["commissions"] = total_trade_comm
+                        current_trade["borrow_fees"] = trade_borrow_fees
                         current_trade["pnl_net"] = pnl
                         init_notional = current_trade.get("initial_notional", 0.0)
                         current_trade["return_pct"] = (pnl / init_notional) if init_notional > 1e-9 else 0.0
@@ -502,14 +513,25 @@ class WalkForwardBacktester:
                 # Si la nueva posición es activa (+1 o -1), dimensionar orden
                 if desired_pos != 0 and not force_stop_loss and not force_earnings_evac:
                     beta_t = abs(beta_vals[t])
-                    # Asignación de capital balanceada por el ratio beta sobre patrimonio neto actual
                     current_nav = cash + (shares_a[t - 1] * p_a) + (shares_b[t - 1] * p_b) if t > 0 else cash
                     allocated_capital = max(current_nav, 0.0) * self.max_leverage
-                    nav_a = allocated_capital / (1.0 + beta_t) if (1.0 + beta_t) > 0 else allocated_capital * 0.5
-                    nav_b = allocated_capital - nav_a
 
-                    new_shares_a = (nav_a / p_a) * desired_pos
-                    new_shares_b = -(nav_b / p_b) * desired_pos  # Posición contraria en B para neutralidad
+                    if self.capital_allocation_mode == "symmetric_50_50":
+                        c_leg = allocated_capital * 0.5
+                        if desired_pos == 1:
+                            # LONG_SPREAD: Activo A subvaluado (Long), Activo B sobrevaluado (Short)
+                            new_shares_a = (c_leg / p_a)
+                            new_shares_b = -(c_leg * beta_t / p_b) if beta_t > 0 else -(c_leg / p_b)
+                        else:
+                            # SHORT_SPREAD: Activo A sobrevaluado (Short), Activo B subvaluado (Long)
+                            new_shares_a = -(c_leg / p_a)
+                            new_shares_b = (c_leg * beta_t / p_b) if beta_t > 0 else (c_leg / p_b)
+                    else:
+                        # Asignación de capital balanceada por el ratio beta sobre patrimonio neto actual
+                        nav_a = allocated_capital / (1.0 + beta_t) if (1.0 + beta_t) > 0 else allocated_capital * 0.5
+                        nav_b = allocated_capital - nav_a
+                        new_shares_a = (nav_a / p_a) * desired_pos
+                        new_shares_b = -(nav_b / p_b) * desired_pos  # Posición contraria en B para neutralidad
 
                     exec_a = self.impact_model.calculate_execution_price(p_a, is_buy=(new_shares_a > 0))
                     exec_b = self.impact_model.calculate_execution_price(p_b, is_buy=(new_shares_b > 0))
@@ -533,7 +555,8 @@ class WalkForwardBacktester:
                         "shares_b": new_shares_b,
                         "initial_notional": init_notional,
                         "entry_comm": comm,
-                        "entry_nav": current_nav
+                        "entry_nav": current_nav,
+                        "borrow_fees": 0.0
                     }
                 else:
                     shares_a[t] = 0.0

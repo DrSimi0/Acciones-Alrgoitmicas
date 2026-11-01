@@ -382,5 +382,344 @@ def main():
     print("=" * 78)
 
 
+def run_fixed_pairs_pipeline():
+    """
+    Pipeline Experimental: Pares Fijos Fundamentales con Ejecución Market-Neutral Long/Short Simétrica.
+
+    Universo: 5 pares de competidores directos de alta capitalización:
+    - [("KO", "PEP"), ("V", "MA"), ("CVX", "XOM"), ("HD", "LOW"), ("UNP", "CSX")]
+
+    Características:
+    - Omite la preselección SSD (pares definidos a priori por fundamentales).
+    - Inyecta directamente los pares al EconometricValidator (Engle-Granger p <= 0.05, Half-Life <= 30d, FDR=0.05).
+    - Aplica Filtro de Calendario Corporativo (CorporateCalendarManager: cuarentena de 3 días y evacuación preventiva).
+    - Simulación con WalkForwardBacktester en modo 'symmetric_50_50' (asignación 50/50 Long/Short con cobertura beta).
+    - Deducción rigurosa de costos bidireccionales y préstamo de cortos (short-borrow fee).
+    - Exporta resultados a results/walk_forward_fixed_pairs_LS.csv y .json.
+    """
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    logging.info("Iniciando Pipeline de Pares Fijos Fundamentales — Modo Market-Neutral Long/Short (50/50)")
+
+    print("=" * 78)
+    print("SISTEMA CUANTITATIVO DE PAIRS TRADING — PARES FIJOS FUNDAMENTALES (LONG/SHORT)")
+    print("=" * 78)
+
+    os.makedirs("results", exist_ok=True)
+
+    # 1. Definición de Pares Fijos y Descarga de Datos
+    fixed_pairs = [
+        ("KO", "PEP"),    # Bebidas / Consumo defensivo
+        ("V", "MA"),      # Redes de pagos / Fintech
+        ("CVX", "XOM"),   # Energía integrada / Petróleo
+        ("HD", "LOW"),    # Retail de mejoras para el hogar
+        ("UNP", "CSX")    # Transporte ferroviario
+    ]
+    unique_tickers = sorted(list(set([t for pair in fixed_pairs for t in pair])))
+    start_date = "2021-01-01"
+    end_date = "2025-12-31"
+
+    print(f"\n[1/5] Descargando precios reales vía yfinance ({len(unique_tickers)} activos, {len(fixed_pairs)} pares fijos)...")
+    print(f"      Activos: {', '.join(unique_tickers)}")
+    print(f"      Pares  : {', '.join([f'{a}/{b}' for a, b in fixed_pairs])}")
+    print(f"      Periodo: {start_date} a {end_date}")
+
+    prices_df = EquityDataLoader.load_historical_prices(
+        tickers=unique_tickers,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+    n_bars, n_assets = prices_df.shape
+    print(f"      Descarga completada: {n_bars} barras diarias sincronizadas.")
+
+    # 2. Partición temporal Walk-Forward (252 barras In-Sample, 63 barras Out-of-Sample)
+    formation_bars = 252
+    trading_bars = 63
+    step_bars = 63
+
+    print(f"\n[2/5] Particionando historial con WalkForwardSplitter...")
+    print(f"      Ventana de formación (In-Sample): {formation_bars} barras (~1 año)")
+    print(f"      Ventana de negociación (Out-of-Sample): {trading_bars} barras (~1 trimestre)")
+
+    splits = WalkForwardSplitter.split(
+        data=prices_df,
+        formation_bars=formation_bars,
+        trading_bars=trading_bars,
+        step_bars=step_bars
+    )
+    print(f"      Total de ventanas Walk-Forward generadas: {len(splits)}")
+
+    # 3. Inicialización de Componentes: Rigor Econométrico + Calendario + Backtester L/S 50/50
+    # Omitimos DistancePreselector (inyección directa de fixed_pairs)
+    validator = EconometricValidator(
+        coint_pvalue_threshold=0.05,
+        min_half_life=2.0,
+        max_half_life=30.0,
+        fdr_alpha=0.05
+    )
+    signal_gen = SignalGenerator(
+        base_entry_z=2.0,
+        exit_z=0.5,
+        elastic_volatility=True
+    )
+    impact_model = MarketImpactModel(
+        commission_bps=1.5,
+        bid_ask_spread_bps=3.0,
+        impact_parameter=0.05,
+        short_borrow_rate_annual=0.02
+    )
+    risk_manager = RiskManager(max_loss_pct=-0.08)
+    calendar_manager = CorporateCalendarManager.generate_synthetic_schedule(
+        tickers=unique_tickers,
+        start_date=start_date,
+        end_date=end_date,
+        interval_days=90
+    )
+    backtester = WalkForwardBacktester(
+        initial_capital=100_000.0,
+        impact_model=impact_model,
+        risk_manager=risk_manager,
+        calendar_manager=calendar_manager,
+        max_leverage=1.0,
+        capital_allocation_mode="symmetric_50_50"
+    )
+
+    print("\n[3/5] Ejecutando simulación Walk-Forward sobre pares fijos...")
+    summary_records = []
+    all_trades_records = []
+    window_logs = []
+    all_candidates_audit = []
+
+    for w_idx, (formation_df, trading_df) in enumerate(splits):
+        f_start = formation_df.index[0].strftime("%Y-%m-%d")
+        f_end = formation_df.index[-1].strftime("%Y-%m-%d")
+        t_start = trading_df.index[0].strftime("%Y-%m-%d")
+        t_end = trading_df.index[-1].strftime("%Y-%m-%d")
+
+        print(f"\n--- Ventana {w_idx + 1}/{len(splits)} | Formación: {f_start} a {f_end} | Trading: {t_start} a {t_end} ---")
+
+        # Inyección directa de fixed_pairs al validador econométrico (sin SSD)
+        validated_pairs_df = validator.validate_candidate_pairs(
+            formation_prices=formation_df,
+            candidate_pairs=fixed_pairs
+        )
+
+        # Auditoría de los 5 pares en cada ventana
+        if not validated_pairs_df.empty:
+            for _, r in validated_pairs_df.iterrows():
+                p_a, p_b = r["asset_a"], r["asset_b"]
+                corr_val = formation_df[p_a].corr(formation_df[p_b])
+
+                status_str = "APROBADO" if r["is_valid_pair"] else "RECHAZADO"
+                reasons = []
+                if not r["is_cointegrated"]:
+                    reasons.append(f"p-val={r['p_value']:.4f}>0.05")
+                if not r["is_half_life_valid"]:
+                    reasons.append(f"HL={r['half_life']:.1f}d no en [2, 30]")
+                if not r["fdr_approved"]:
+                    reasons.append("Rechazado por FDR Benjamini-Hochberg (alpha=0.05)")
+
+                all_candidates_audit.append({
+                    "window": w_idx + 1,
+                    "formation_period": f"{f_start} a {f_end}",
+                    "trading_period": f"{t_start} a {t_end}",
+                    "pair": f"{p_a}_{p_b}",
+                    "correlation": round(corr_val, 4),
+                    "coint_stat": round(r["coint_stat"], 4),
+                    "p_value": round(r["p_value"], 4),
+                    "half_life": round(r["half_life"], 2),
+                    "is_cointegrated": bool(r["is_cointegrated"]),
+                    "is_half_life_valid": bool(r["is_half_life_valid"]),
+                    "fdr_approved": bool(r["fdr_approved"]),
+                    "is_valid_pair": bool(r["is_valid_pair"]),
+                    "rejection_reason": f"{status_str} ({', '.join(reasons)})" if reasons else status_str
+                })
+
+        if validated_pairs_df.empty:
+            print("      No se pudieron validar los pares fijos en la ventana.")
+            continue
+
+        valid_pairs = validated_pairs_df[validated_pairs_df["is_valid_pair"] == True]
+        print(f"      Pares fijos evaluados: {len(fixed_pairs)} | Cointegrados y aprobados por FDR: {len(valid_pairs)}")
+
+        w_record = {
+            "window": w_idx + 1,
+            "formation_start": f_start,
+            "formation_end": f_end,
+            "trading_start": t_start,
+            "trading_end": t_end,
+            "fixed_pairs": len(fixed_pairs),
+            "validated_pairs": len(valid_pairs),
+            "trades": []
+        }
+
+        if valid_pairs.empty:
+            print("      Ningún par fijo superó el rigor econométrico en esta ventana.")
+            window_logs.append(w_record)
+            continue
+
+        for _, pair_row in valid_pairs.iterrows():
+            a = pair_row["asset_a"]
+            b = pair_row["asset_b"]
+            pair_name = f"{a}_{b}"
+            coint_p = pair_row["p_value"]
+            hl = pair_row["half_life"]
+
+            p_a_oos = trading_df[a]
+            p_b_oos = trading_df[b]
+
+            # Filtro de Kalman secuencial con detección de ruptura
+            kalman = KalmanSpreadTracker(breakdown_threshold=5.0)
+            kalman_df = kalman.filter_series(p_a_oos, p_b_oos)
+
+            # Z-Score y volatilidad condicional GARCH/EWMA
+            z_score = signal_gen.compute_zscore(kalman_df["spread"], rolling_window=min(30, len(kalman_df)))
+            cond_vol = signal_gen.garch_estimator.estimate_volatility(kalman_df["spread"])
+
+            # Correlación móvil
+            ret_a = p_a_oos.pct_change()
+            ret_b = p_b_oos.pct_change()
+            roll_corr = ret_a.rolling(20, min_periods=5).corr(ret_b).fillna(1.0)
+
+            # Generación de Señales adaptativas con flag de ruptura Kalman
+            signals_df = signal_gen.generate_signals(
+                spread=kalman_df["spread"],
+                z_score=z_score,
+                half_life=hl,
+                rolling_correlation=roll_corr,
+                conditional_vol=cond_vol,
+                kalman_breakdown=kalman_df["is_broken"]
+            )
+
+            # Simulación de trading OOS con RiskManager (Stop-Loss -8%) y CorporateCalendarManager (Earnings Filter)
+            history_df, trades_df = backtester.simulate_pair(
+                prices_a=p_a_oos,
+                prices_b=p_b_oos,
+                signals=signals_df["position"],
+                hedge_ratio=kalman_df["beta"],
+                signals_exit_reasons=signals_df["exit_reason"],
+                ticker_a=a,
+                ticker_b=b
+            )
+
+            # Evaluación de Métricas con PerformanceEvaluator
+            metrics = PerformanceEvaluator.calculate_metrics(
+                equity_curve=history_df["net_equity"],
+                gross_equity_curve=history_df["gross_equity"],
+                trades_df=trades_df
+            )
+            n_trades = len(trades_df)
+            ret_net = metrics.get("total_net_return", 0.0)
+            sharpe = metrics.get("sharpe_ratio", 0.0)
+            max_dd = metrics.get("max_drawdown", 0.0)
+            win_rate = metrics.get("win_rate", 0.0)
+            p_factor = metrics.get("profit_factor", 0.0)
+
+            print(f"      [Operado: {pair_name}] Trades: {n_trades} | Ret Neto: {ret_net:.2%} | Sharpe: {sharpe:.2f} | MaxDD: {max_dd:.2%}")
+
+            if not trades_df.empty:
+                for _, t_row in trades_df.iterrows():
+                    d_in = str(t_row["entry_date"])[:10]
+                    d_out = str(t_row["exit_date"])[:10]
+                    dr = t_row["direction"]
+                    pnl = float(t_row.get("pnl_net", 0.0))
+                    ret_p = float(t_row.get("return_pct", 0.0))
+                    reason = t_row.get("exit_reason", "none")
+                    print(f"        -> Trade: {dr} | {d_in} a {d_out} | PnL: ${pnl:>9.2f} ({ret_p:>6.2%}) | Salida: {reason}")
+
+                    t_dict = t_row.to_dict()
+                    t_dict["window"] = w_idx + 1
+                    t_dict["pair"] = pair_name
+                    all_trades_records.append(t_dict)
+                    w_record["trades"].append({
+                        "pair": pair_name,
+                        "direction": t_dict["direction"],
+                        "entry": str(t_dict["entry_date"])[:10],
+                        "exit": str(t_dict["exit_date"])[:10],
+                        "pnl_net": t_dict["pnl_net"],
+                        "return_pct": t_dict["return_pct"],
+                        "pnl_leg_a": t_dict.get("pnl_leg_a", 0.0),
+                        "pnl_leg_b": t_dict.get("pnl_leg_b", 0.0),
+                        "borrow_fees": t_dict.get("borrow_fees", 0.0),
+                        "exit_reason": t_dict.get("exit_reason", "unknown")
+                    })
+
+            summary_records.append({
+                "window": w_idx + 1,
+                "pair": pair_name,
+                "coint_pvalue": coint_p,
+                "half_life": hl,
+                "trades": n_trades,
+                "net_return": ret_net,
+                "gross_return": metrics.get("total_gross_return", 0.0),
+                "friction_drag": metrics.get("friction_drag", 0.0),
+                "sharpe": sharpe,
+                "max_drawdown": max_dd,
+                "win_rate": win_rate,
+                "profit_factor": p_factor,
+                "expectancy": metrics.get("expectancy_per_trade", 0.0)
+            })
+
+        window_logs.append(w_record)
+
+    # 4. Exportación de Resultados
+    print("\n[4/5] Exportando resultados consolidados de Pares Fijos L/S...")
+    output_csv = "results/walk_forward_fixed_pairs_LS.csv"
+    output_json = "results/walk_forward_fixed_pairs_LS.json"
+    audit_csv = "results/fixed_pairs_candidates_audit.csv"
+    trades_csv = "results/trades_fixed_pairs_LS.csv"
+
+    if all_candidates_audit:
+        df_audit = pd.DataFrame(all_candidates_audit)
+        df_audit.to_csv(audit_csv, index=False)
+        print(f"      Auditoría de candidatos guardada en: {audit_csv} ({len(all_candidates_audit)} registros)")
+
+    if summary_records:
+        df_summary = pd.DataFrame(summary_records)
+        df_summary.to_csv(output_csv, index=False)
+        print(f"      Archivo CSV de ventanas generado: {output_csv}")
+    else:
+        print("      No se generaron registros de ventanas operadas.")
+        pd.DataFrame().to_csv(output_csv, index=False)
+
+    if all_trades_records:
+        df_trades_all = pd.DataFrame(all_trades_records)
+        df_trades_all.to_csv(trades_csv, index=False)
+        print(f"      Registro de operaciones detalladas guardado en: {trades_csv} ({len(df_trades_all)} trades)")
+    else:
+        print("      No se ejecutaron operaciones en las ventanas OOS.")
+        pd.DataFrame().to_csv(trades_csv, index=False)
+
+    with open(output_json, "w") as f:
+        json.dump(window_logs, f, indent=2)
+    print(f"      Archivo JSON detallado: {output_json}")
+
+    print("\n[5/5] Resumen Global de Pares Fijos Fundamentales (Long/Short 50/50):")
+    if summary_records:
+        df_sum = pd.DataFrame(summary_records)
+        total_trades = df_sum["trades"].sum()
+        avg_sharpe = df_sum["sharpe"].mean()
+        avg_ret = df_sum["net_return"].mean()
+        max_dd_overall = df_sum["max_drawdown"].min()
+        print(f"      Total operaciones ejecutadas OOS : {total_trades}")
+        print(f"      Retorno Neto promedio por ventana: {avg_ret:.2%}")
+        print(f"      Sharpe promedio OOS              : {avg_sharpe:.2f}")
+        print(f"      Peor Drawdown registrado         : {max_dd_overall:.2%}")
+
+    if all_trades_records:
+        df_tr = pd.DataFrame(all_trades_records)
+        print("\n      Distribución de Motivos de Salida (exit_reason):")
+        for reason, count in df_tr["exit_reason"].value_counts().items():
+            print(f"        - {reason:<22}: {count:>3} trades ({count / len(df_tr):.1%})")
+
+    print("\n" + "=" * 78)
+    print("PIPELINE DE PARES FIJOS L/S FINALIZADO CON ÉXITO")
+    print("=" * 78)
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] in ("--fixed-pairs", "-f", "fixed_pairs"):
+        run_fixed_pairs_pipeline()
+    else:
+        main()

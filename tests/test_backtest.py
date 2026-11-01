@@ -63,6 +63,52 @@ class TestWalkForwardBacktester:
         final_gross = history["gross_equity"].iloc[-1]
         assert final_net < final_gross
 
+    def test_symmetric_50_50_capital_allocation(self):
+        dates = pd.date_range("2023-01-01", periods=4, freq="B")
+        prices_a = pd.Series([100.0, 100.0, 100.0, 100.0], index=dates)
+        prices_b = pd.Series([50.0, 50.0, 50.0, 50.0], index=dates)
+        signals = pd.Series([0, 1, 1, 0], index=dates)
+        beta = pd.Series([1.5] * 4, index=dates)
+
+        init_cap = 100_000.0
+        backtester = WalkForwardBacktester(
+            initial_capital=init_cap,
+            capital_allocation_mode="symmetric_50_50"
+        )
+        history, trades = backtester.simulate_pair(prices_a, prices_b, signals, beta)
+
+        assert not trades.empty
+        trade = trades.iloc[0]
+        # Con $100k, 50% nocional base = $50,000 en A
+        # Shares A = 50,000 / 100.0 = 500
+        # Pata Short B = -50,000 * 1.5 = -$75,000 -> Shares B = -75,000 / 50.0 = -1500
+        assert np.isclose(trade["shares_a"], 500.0, atol=1.0)
+        assert np.isclose(trade["shares_b"], -1500.0, atol=1.0)
+
+    def test_trade_pnl_deducts_borrow_fees_and_tracks_legs(self):
+        dates = pd.date_range("2023-01-01", periods=6, freq="B")
+        # Precios planos en A y B para aislar costos de fricción y préstamo
+        prices_a = pd.Series([100.0] * 6, index=dates)
+        prices_b = pd.Series([50.0] * 6, index=dates)
+        # Señal activa en t=1 ejecutada en t=2, se mantiene 2 días y cierra en t=4 ejecutada en t=5
+        signals = pd.Series([0, 1, 1, 1, 0, 0], index=dates)
+        beta = pd.Series([1.0] * 6, index=dates)
+
+        impact = MarketImpactModel(commission_bps=0.0, bid_ask_spread_bps=0.0, impact_parameter=0.0, short_borrow_rate_annual=0.10)
+        backtester = WalkForwardBacktester(initial_capital=100_000.0, impact_model=impact)
+        _, trades = backtester.simulate_pair(prices_a, prices_b, signals, beta)
+
+        assert not trades.empty
+        trade = trades.iloc[0]
+        # Debe haber registrado pnl_leg_a, pnl_leg_b y borrow_fees > 0
+        assert "pnl_leg_a" in trade
+        assert "pnl_leg_b" in trade
+        assert "borrow_fees" in trade
+        assert trade["borrow_fees"] > 0.0
+        # PnL neto debe ser exactamente pnl_a + pnl_b - comm - borrow_fees
+        expected_pnl = trade["pnl_leg_a"] + trade["pnl_leg_b"] - trade.get("commissions", 0.0) - trade["borrow_fees"]
+        assert np.isclose(trade["pnl_net"], expected_pnl, atol=1e-5)
+
 
 class TestRiskManager:
 

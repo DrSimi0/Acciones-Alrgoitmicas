@@ -64,4 +64,14 @@ Este archivo documenta las fuentes científicas que sustentan el diseño de la e
   2. Construcción de spreads sintéticos individuales $X_{i,t} = \sum \epsilon_{i,s}$ neutrales a los factores dominantes.
   3. Validación de estacionariedad $I(0)$ vía ADF, estimación de vidas medias de reversión $\tau_{1/2} = \frac{\ln 2}{\kappa}$ y control de error de minería de datos mediante FDR Benjamini-Hochberg ($\alpha=0.05$) en `src/spread.py`.
 
+---
+
+## 9. Pares Fundamentales A Priori vs Búsqueda Algorítmica por Distancia
+* **Hipótesis:** La selección de pares basada en competidores directos con modelos de negocio casi idénticos (ej. Chevron vs ExxonMobil, Visa vs Mastercard) posee una base económica intrínseca que minimiza el riesgo de divergencia secular en comparación con pares emparejados puramente por cercanía euclidiana de precios (SSD).
+* **Evidencia Empírica del Proyecto:** En el experimento de Pares Fijos Fundamentales (rama `exp-cerrar-distancia-pares-definidos`, 2021–2025):
+  - El par `CVX_XOM` superó el rigor econométrico pleno ($p = 0.0007$, Half-Life $= 27.7$ días, FDR $\le 0.05$) en la ventana de formación de 2021–2022.
+  - La operativa Long/Short 50/50 ejecutó 2 operaciones con 100% de salidas por reversión a la media (`mean_reversion`), generando un retorno neto positivo (+0.32%, Sharpe 0.35, Max Drawdown -1.36%) tras costos bidireccionales y comisiones de préstamo de cortos.
+  - En las restantes ventanas, los otros pares fundamentales no superaron el control de cointegración estricta, lo cual evidencia que compartir sector no garantiza estacionariedad continua, justificando la presencia indispensable del filtro econométrico incluso ante hipótesis fundamentales obvias.
+
+
 
