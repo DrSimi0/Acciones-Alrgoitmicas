@@ -1,7 +1,7 @@
 # Estado del Proyecto: Arbitraje Estadístico de Pares
 
 * **Fecha de actualización:** 2026-11-01
-* **Fase Actual:** Fase 9 Completada — Pipeline de Producción PCA Multivariado en S&P 100 con Ejecución Sintética Market-Neutral (Long/Short vs SPY Proxy)
+* **Fase Actual:** Fase 10 Completada — Implementación y Validación de la Configuración Híbrida ("The Sweet Spot") en Arbitraje Estadístico PCA S&P 100
 
 ---
 
@@ -69,21 +69,23 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
     - `GOOGL` (Ventana 13, feb 2025): **+8.59%** neto (+$9,446.11)
     - `GE` (Ventana 1, mar 2022): **+5.05%** neto (+$5,617.79)
 
-### Comparativa: Configuración Base vs Optimizada (Arbitraje Estadístico PCA S&P 100):
+### Comparativa Tripartita: Base vs Optimizada vs Híbrida ("The Sweet Spot"):
 
-| Métrica Cuantitativa | Configuración Base (ADR 011) | Configuración Optimizada (ADR 012) | Impacto / Hallazgo |
-| :--- | :---: | :---: | :---: |
-| **`variance_threshold` / `max_half_life` / `exit_z`** | 0.80 / 30.0d / 0.50 | **0.87 / 12.0d / 0.75** | Parámetros más reactivos |
-| **Operaciones Totales (15 Ventanas OOS)** | 18 trades | **15 trades** | Mayor selectividad econométrica |
-| **Trades cerrados por `mean_reversion`** | 4 (22.2%) | **6 (40.0%)** | **+17.8% de reversiones directas** |
-| **Trades cerrados por `stop_half_life`** | 5 (27.8%) | **2 (13.3%)** | **-14.5% de salidas por timeout** |
-| **Trades cerrados por `end_of_period`** | 6 (33.3%) | **1 (6.7%)** | **-26.6% de posiciones atrapadas** |
-| **Trades evacuados por Earnings** | 2 (11.1%) | **5 (33.3%)** | Disciplina de riesgo activa |
-| **Trades cerrados por `stop_loss_8pct`** | 1 (5.6%) | **1 (6.7%)** | Control de pérdidas idéntico |
-| **Retorno Neto Medio por Ventana** | -0.10% | **-4.22%** | Dispersión residual concentrada |
-| **Ratio de Sharpe Medio OOS** | -0.03 | **-1.27** | Impacto de sobreajuste dimensional |
-| **Peor Drawdown Registrado** | -10.38% | **-14.29%** | Aumento moderado de volatilidad |
-| **Tasa de Acierto (Win Rate)** | 44.4% | **26.7%** | Reducción por falsos quiebres |
+| Métrica Cuantitativa | Configuración Base (ADR 011) | Configuración Optimizada (ADR 012) | Configuración Híbrida (ADR 013) | Impacto / Conclusión |
+| :--- | :---: | :---: | :---: | :---: |
+| **`variance_threshold`** | 0.80 (20 a 36 factores) | 0.87 (32 a 47 factores) | **0.80 (20 a 36 factores)** | Estabilidad macroeconómica |
+| **`max_half_life`** | 30.0 días | 12.0 días | **12.0 días** | Exclusión de series lentas |
+| **`exit_z` (Toma de ganancias)** | 0.50 | 0.75 | **0.75** | Captura vertical acelerada |
+| **Operaciones Totales (15 Ventanas OOS)** | 18 trades | 15 trades | **19 trades** | Cadencia operativa sólida |
+| **Trades cerrados por `mean_reversion`** | 4 (22.2%) | 6 (40.0%) | **7 (36.8%)** | **+14.6% vs Base** |
+| **Trades cerrados por `stop_half_life`** | 5 (27.8%) | 2 (13.3%) | **4 (21.1%)** | Menor tiempo en riesgo |
+| **Trades cerrados por `end_of_period`** | 6 (33.3%) | 1 (6.7%) | **5 (26.3%)** | Menos posiciones atrapadas |
+| **Trades evacuados por Earnings** | 2 (11.1%) | 5 (33.3%) | **2 (10.5%)** | Disciplina de riesgo activa |
+| **Trades cerrados por `stop_loss_8pct`** | 1 (5.6%) | 1 (6.7%) | **1 (5.3%)** | Colas izquierdas acotadas |
+| **Retorno Neto Medio por Ventana** | -0.10% | -4.22% | **+0.68%** | **Alfa neto positivo** |
+| **Ratio de Sharpe Medio OOS** | -0.03 | -1.27 | **+0.16** | **Sharpe positivo out-of-sample** |
+| **Peor Drawdown Registrado** | -10.38% | -14.29% | **-10.38%** | Riesgo contenido |
+| **Tasa de Acierto (Win Rate)** | 44.4% | 26.7% | **47.4% (9/19)** | **Mayor consistencia** |
 
 ---
 

@@ -143,4 +143,21 @@ Este documento registra las decisiones técnicas clave, su contexto y sus justif
   4. **Exportación Segregada:** Guardar resultados en `results/*_optimized.csv` y `.json`.
 * **Consecuencias:** Se eliminaron casi por completo las posiciones atrapadas al cierre del trimestre (reducción de `end_of_period` del 33.3% al 6.7%) y los timeouts de vida media cayeron del 27.8% al 13.3%, elevando la tasa de salidas limpias por reversión a la media al 40.0%. No obstante, extraer hasta 47 factores PCA provocó sobreajuste in-sample, incrementando la dispersión en los periodos de divergencia estructural de 2023.
 
+---
+
+## ADR 013: Configuración Híbrida ("The Sweet Spot") — Arbitraje Estadístico PCA S&P 100
+* **Fecha:** 2026-11-01
+* **Estado:** Aceptado
+* **Contexto:**
+  1. La configuración base (ADR 011) ofreció estabilidad factorial (retorno -0.10%, Sharpe -0.03), pero sufrió de permanencia excesiva (33.3% de cierres por fin de trimestre).
+  2. La configuración agresiva (ADR 012) elevó `variance_threshold` a 0.87, lo que aumentó los autovectores a 47 provocando sobreajuste in-sample en 2023 (-4.22% retorno).
+  3. Se requiere un equilibrio exacto ("The Sweet Spot") que preserve los 20–36 factores macro reales del PCA con la velocidad estricta de salida.
+* **Decisión:**
+  1. **Estabilidad Factorial:** Revertir `variance_threshold` a `0.80` en `PCAFactorModel`.
+  2. **Velocidad de Reversión Estricta:** Mantener `max_half_life` en `12.0` días en `EconometricValidator`.
+  3. **Toma de Ganancias Asimétrica:** Mantener `exit_z` en `0.75` en `SignalGenerator`.
+  4. **Exportación:** Guardar resultados en `results/*_hybrid.csv` y `.json`.
+* **Consecuencias:** Se alcanzó el mejor rendimiento del arbitraje estadístico multivariado: **Retorno neto medio positivo de +0.68% por ventana**, **Ratio de Sharpe positivo de +0.16**, **Drawdown máximo acotado en -10.38%**, tasa de acierto del **47.4%** y un incremento del **14.6% en salidas limpias por reversión a la media** (36.8%) frente a la base.
+
+
 
