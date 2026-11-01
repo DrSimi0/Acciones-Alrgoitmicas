@@ -117,6 +117,9 @@ class GARCH11Estimator:
 
         return pd.Series(sigma, index=dates, name="cond_vol")
 
+    # Alias para compatibilidad
+    estimate = estimate_volatility
+
 
 class SignalGenerator:
     """

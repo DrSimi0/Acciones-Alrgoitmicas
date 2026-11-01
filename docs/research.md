@@ -73,5 +73,15 @@ Este archivo documenta las fuentes científicas que sustentan el diseño de la e
   - La operativa Long/Short 50/50 ejecutó 2 operaciones con 100% de salidas por reversión a la media (`mean_reversion`), generando un retorno neto positivo (+0.32%, Sharpe 0.35, Max Drawdown -1.36%) tras costos bidireccionales y comisiones de préstamo de cortos.
   - En las restantes ventanas, los otros pares fundamentales no superaron el control de cointegración estricta, lo cual evidencia que compartir sector no garantiza estacionariedad continua, justificando la presencia indispensable del filtro econométrico incluso ante hipótesis fundamentales obvias.
 
+---
+
+## 10. Arbitraje Estadístico en el S&P 100: Cobertura Sintética con Proxy ETF (SPY) y Desempeño Fuera de Muestra
+* **Hipótesis:** Operar cada acción individual cuyo residual multivariado $X_{i,t}$ se desvía de su media contra un ETF representativo del mercado general (`SPY`) escalado por su sensibilidad sistemática global ($\beta_{total} = \sum_{k=1}^K \beta_{i,k}$) aísla el componente puramente idiosincrásico y permite capturar alfa de reversión a la media con neutralidad de mercado.
+* **Evidencia Empírica del Proyecto (2021–2025):**
+  1. **Filtrado de Liquidez Masivo:** En el S&P 100, el 98% de los componentes superan de forma estable el umbral de $\$50\text{M}$ diarios en $\text{ADTV}_{20}$ y $\$10$ de precio, eliminando fricciones por iliquidez.
+  2. **Selectividad del Rigor Econométrico:** Al evaluar 98 residuales por ventana con el procedimiento FDR de Benjamini-Hochberg ($\alpha = 0.05$), únicamente 0 a 3 activos por ventana superaron la triple prueba econométrica (estacionariedad ADF $p \le 0.05$ y vida media OU $\le 30$ días). Esto evitó sobreoperar en activos con tendencias estructurales unidireccionales (ej. mega-caps tecnológicas en rallies de IA).
+  3. **Rendimiento y Mitigación de Pérdidas:** Se ejecutaron 18 operaciones fuera de muestra en 15 ventanas Walk-Forward. Aunque el retorno agregado fue prácticamente plano (-0.10% medio por ventana, Sharpe -0.03), el sistema capturó trades de alta ganancia (+10.38% en `GOOG`, +9.14% en `NEE`, +8.59% en `GOOGL`, +5.05% en `GE`), mientras que el Hard Stop-Loss del -8% y el filtro de cuarentena de earnings contuvieron las pérdidas máximas en niveles controlados (-10.38% de peor drawdown).
+
+
 
 

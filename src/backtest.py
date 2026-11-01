@@ -502,6 +502,8 @@ class WalkForwardBacktester:
 
                         current_trade["pnl_leg_a"] = pnl_a
                         current_trade["pnl_leg_b"] = pnl_b
+                        current_trade["pnl_leg_asset"] = pnl_a
+                        current_trade["pnl_leg_proxy"] = pnl_b
                         current_trade["commissions"] = total_trade_comm
                         current_trade["borrow_fees"] = trade_borrow_fees
                         current_trade["pnl_net"] = pnl
@@ -516,7 +518,19 @@ class WalkForwardBacktester:
                     current_nav = cash + (shares_a[t - 1] * p_a) + (shares_b[t - 1] * p_b) if t > 0 else cash
                     allocated_capital = max(current_nav, 0.0) * self.max_leverage
 
-                    if self.capital_allocation_mode == "symmetric_50_50":
+                    if self.capital_allocation_mode == "synthetic_pca":
+                        # Asignación Long/Short Sintética (Avellaneda & Lee):
+                        # Pata Activo: 100% capital al activo subyacente.
+                        # Pata Proxy: Cobertura con ETF proxy (ej. SPY) escalado por sum(beta_ik).
+                        if desired_pos == 1:
+                            # LONG_SPREAD: Activo A subvaluado (Long 100%), Proxy B (Short beta)
+                            new_shares_a = (allocated_capital / p_a)
+                            new_shares_b = -(allocated_capital * beta_t / p_b) if beta_t > 0 else -(allocated_capital / p_b)
+                        else:
+                            # SHORT_SPREAD: Activo A sobrevaluado (Short 100%), Proxy B (Long beta)
+                            new_shares_a = -(allocated_capital / p_a)
+                            new_shares_b = (allocated_capital * beta_t / p_b) if beta_t > 0 else (allocated_capital / p_b)
+                    elif self.capital_allocation_mode == "symmetric_50_50":
                         c_leg = allocated_capital * 0.5
                         if desired_pos == 1:
                             # LONG_SPREAD: Activo A subvaluado (Long), Activo B sobrevaluado (Short)
@@ -581,7 +595,15 @@ class WalkForwardBacktester:
             current_trade["exit_reason"] = "end_of_period"
             pnl_a = shares_a[-1] * (price_a_vals[-1] - current_trade["entry_price_a"])
             pnl_b = shares_b[-1] * (price_b_vals[-1] - current_trade["entry_price_b"])
-            pnl = pnl_a + pnl_b - current_trade.get("entry_comm", 0.0)
+            trade_borrow_fees = current_trade.get("borrow_fees", 0.0)
+            total_trade_comm = current_trade.get("entry_comm", 0.0)
+            pnl = pnl_a + pnl_b - total_trade_comm - trade_borrow_fees
+            current_trade["pnl_leg_a"] = pnl_a
+            current_trade["pnl_leg_b"] = pnl_b
+            current_trade["pnl_leg_asset"] = pnl_a
+            current_trade["pnl_leg_proxy"] = pnl_b
+            current_trade["commissions"] = total_trade_comm
+            current_trade["borrow_fees"] = trade_borrow_fees
             current_trade["pnl_net"] = pnl
             init_notional = current_trade.get("initial_notional", 0.0)
             current_trade["return_pct"] = (pnl / init_notional) if init_notional > 1e-9 else 0.0

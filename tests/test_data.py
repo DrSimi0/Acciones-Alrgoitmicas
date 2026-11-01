@@ -110,3 +110,38 @@ class TestSyntheticMarketDataGenerator:
         df = SyntheticMarketDataGenerator.generate_random_walks(n_assets=5, n_bars=100)
         assert df.shape == (100, 5)
         assert not df.isna().any().any()
+
+
+class TestLiquidityFilter:
+
+    def test_filter_by_liquidity_adtv_and_price(self):
+        dates = pd.date_range("2023-01-01", periods=30, freq="B")
+        from src.data import EquityDataLoader
+
+        # Stock A: Líquida ($100 precio, 1,000,000 volumen -> $100M ADTV > $50M) -> Pasa
+        prices_a = [100.0] * 30
+        vol_a = [1_000_000.0] * 30
+
+        # Stock B: Ilíquida por ADTV ($50 precio, 500,000 volumen -> $25M ADTV < $50M) -> Falla
+        prices_b = [50.0] * 30
+        vol_b = [500_000.0] * 30
+
+        # Stock C: Penny stock ($5 precio < $10, 20,000,000 volumen -> $100M ADTV pero precio bajo) -> Falla
+        prices_c = [5.0] * 30
+        vol_c = [20_000_000.0] * 30
+
+        prices_df = pd.DataFrame({"STOCK_A": prices_a, "STOCK_B": prices_b, "STOCK_C": prices_c}, index=dates)
+        volumes_df = pd.DataFrame({"STOCK_A": vol_a, "STOCK_B": vol_b, "STOCK_C": vol_c}, index=dates)
+
+        liquid_assets = EquityDataLoader.filter_by_liquidity(
+            prices_df=prices_df,
+            volumes_df=volumes_df,
+            min_adtv=50_000_000.0,
+            min_price=10.0,
+            window=20
+        )
+
+        assert "STOCK_A" in liquid_assets
+        assert "STOCK_B" not in liquid_assets
+        assert "STOCK_C" not in liquid_assets
+        assert len(liquid_assets) == 1

@@ -264,3 +264,109 @@ class EquityDataLoader:
         prices = prices.ffill().dropna()
 
         return prices
+
+    @staticmethod
+    def load_historical_market_data(
+        tickers: List[str],
+        start_date: str = "2021-01-01",
+        end_date: str = "2025-12-31"
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Descarga precios de cierre ajustados y volúmenes diarios para la lista de tickers.
+
+        Args:
+            tickers: Lista de símbolos de acciones.
+            start_date: Fecha inicial ISO (YYYY-MM-DD).
+            end_date: Fecha final ISO (YYYY-MM-DD).
+
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame]: (prices_df, volumes_df) sincronizados y limpios.
+        """
+        import yfinance as yf
+
+        data = yf.download(
+            tickers=tickers,
+            start=start_date,
+            end=end_date,
+            auto_adjust=True,
+            progress=False
+        )
+
+        if data.empty:
+            raise ValueError(f"No se pudieron descargar datos para los tickers: {tickers}")
+
+        if isinstance(data.columns, pd.MultiIndex):
+            prices = data["Close"].copy() if "Close" in data.columns.levels[0] else data.iloc[:, :len(tickers)].copy()
+            volumes = data["Volume"].copy() if "Volume" in data.columns.levels[0] else pd.DataFrame(0.0, index=prices.index, columns=prices.columns)
+        else:
+            prices = data[["Close"]].copy() if "Close" in data.columns else data.copy()
+            volumes = data[["Volume"]].copy() if "Volume" in data.columns else pd.DataFrame(0.0, index=prices.index, columns=prices.columns)
+            if len(tickers) == 1:
+                prices.columns = tickers
+                volumes.columns = tickers
+
+        # Alinear columnas para tickers faltantes o no ordenados
+        for t in tickers:
+            if t not in prices.columns:
+                prices[t] = np.nan
+            if t not in volumes.columns:
+                volumes[t] = np.nan
+
+        prices = prices[tickers].copy()
+        volumes = volumes[tickers].copy()
+
+        # Limpiar zona horaria para compatibilidad uniforme
+        prices.index = pd.to_datetime(prices.index).tz_localize(None)
+        volumes.index = pd.to_datetime(volumes.index).tz_localize(None)
+
+        # Relleno hacia adelante de precios y ceros en volumen
+        prices = prices.ffill().dropna(how="all")
+        volumes = volumes.fillna(0.0).loc[prices.index]
+
+        return prices, volumes
+
+    @staticmethod
+    def filter_by_liquidity(
+        prices_df: pd.DataFrame,
+        volumes_df: pd.DataFrame,
+        min_adtv: float = 50_000_000.0,
+        min_price: float = 10.0,
+        window: int = 20
+    ) -> List[str]:
+        """
+        Filtro de Liquidez: Descarta activos cuyo volumen promedio diario negociado en dólares (ADTV)
+        de los últimos 'window' días sea inferior a 'min_adtv' o cuyo precio sea menor a 'min_price'.
+
+        La evaluación se realiza sobre las últimas 'window' barras disponibles del DataFrame de entrada
+        (diseñado para ejecutarse sobre el conjunto in-sample de cada ventana Walk-Forward sin look-ahead bias).
+
+        Args:
+            prices_df: DataFrame con precios de cierre.
+            volumes_df: DataFrame con volúmenes negociados.
+            min_adtv: Volumen promedio diario en dólares mínimo (por defecto $50,000,000).
+            min_price: Precio mínimo admisible al cierre de formación (por defecto $10.0).
+            window: Número de barras pasadas para la media móvil (por defecto 20 días).
+
+        Returns:
+            Lista de tickers que cumplen los criterios de liquidez.
+        """
+        if prices_df.empty or volumes_df.empty:
+            return []
+
+        # Asegurar alineación temporal
+        common_idx = prices_df.index.intersection(volumes_df.index)
+        p = prices_df.loc[common_idx]
+        v = volumes_df.loc[common_idx]
+
+        if len(p) < window:
+            window = max(1, len(p))
+
+        # Volumen diario negociado en dólares: Dollar Volume = Price * Volume
+        dollar_volume = p * v
+        adtv = dollar_volume.iloc[-window:].mean()
+        latest_prices = p.iloc[-1]
+
+        liquid_mask = (adtv >= min_adtv) & (latest_prices >= min_price) & (~p.iloc[-window:].isna().any())
+        liquid_tickers = list(liquid_mask[liquid_mask].index)
+
+        return liquid_tickers

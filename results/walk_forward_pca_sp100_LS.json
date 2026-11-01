@@ -1,0 +1,287 @@
+[
+  {
+    "window": 1,
+    "in_sample_range": [
+      "2021-01-04",
+      "2021-12-31"
+    ],
+    "out_of_sample_range": [
+      "2022-01-03",
+      "2022-04-01"
+    ],
+    "liquid_assets": 98,
+    "k_components": 28,
+    "variance_explained": 1.0,
+    "approved_assets": 1,
+    "trades_count": 4,
+    "net_return": 0.04320803317938382,
+    "sharpe": 1.5362350008052568,
+    "max_drawdown": -0.05111284417034528
+  },
+  {
+    "window": 2,
+    "in_sample_range": [
+      "2021-04-06",
+      "2022-04-01"
+    ],
+    "out_of_sample_range": [
+      "2022-04-04",
+      "2022-07-05"
+    ],
+    "liquid_assets": 98,
+    "k_components": 27,
+    "variance_explained": 0.9999999999999999,
+    "approved_assets": 2,
+    "trades_count": 3,
+    "net_return": -0.05631124753217559,
+    "sharpe": -1.3147261441340172,
+    "max_drawdown": -0.10376633943912907
+  },
+  {
+    "window": 3,
+    "in_sample_range": [
+      "2021-07-06",
+      "2022-07-05"
+    ],
+    "out_of_sample_range": [
+      "2022-07-06",
+      "2022-10-03"
+    ],
+    "liquid_assets": 97,
+    "k_components": 23,
+    "variance_explained": 1.0,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 4,
+    "in_sample_range": [
+      "2021-10-04",
+      "2022-10-03"
+    ],
+    "out_of_sample_range": [
+      "2022-10-04",
+      "2023-01-03"
+    ],
+    "liquid_assets": 97,
+    "k_components": 22,
+    "variance_explained": 0.9999999999999999,
+    "approved_assets": 3,
+    "trades_count": 5,
+    "net_return": 0.05468165457010299,
+    "sharpe": 1.686376432946943,
+    "max_drawdown": -0.09733128470773054
+  },
+  {
+    "window": 5,
+    "in_sample_range": [
+      "2022-01-03",
+      "2023-01-03"
+    ],
+    "out_of_sample_range": [
+      "2023-01-04",
+      "2023-04-04"
+    ],
+    "liquid_assets": 97,
+    "k_components": 20,
+    "variance_explained": 0.9999999999999992,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 6,
+    "in_sample_range": [
+      "2022-04-04",
+      "2023-04-04"
+    ],
+    "out_of_sample_range": [
+      "2023-04-05",
+      "2023-07-06"
+    ],
+    "liquid_assets": 98,
+    "k_components": 21,
+    "variance_explained": 1.0,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 7,
+    "in_sample_range": [
+      "2022-07-06",
+      "2023-07-06"
+    ],
+    "out_of_sample_range": [
+      "2023-07-07",
+      "2023-10-04"
+    ],
+    "liquid_assets": 98,
+    "k_components": 25,
+    "variance_explained": 1.0000000000000004,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 8,
+    "in_sample_range": [
+      "2022-10-04",
+      "2023-10-04"
+    ],
+    "out_of_sample_range": [
+      "2023-10-05",
+      "2024-01-04"
+    ],
+    "liquid_assets": 97,
+    "k_components": 29,
+    "variance_explained": 1.0000000000000002,
+    "approved_assets": 1,
+    "trades_count": 1,
+    "net_return": -0.0995712041604645,
+    "sharpe": -3.14447422276282,
+    "max_drawdown": -0.09957120416046455
+  },
+  {
+    "window": 9,
+    "in_sample_range": [
+      "2023-01-04",
+      "2024-01-04"
+    ],
+    "out_of_sample_range": [
+      "2024-01-05",
+      "2024-04-05"
+    ],
+    "liquid_assets": 97,
+    "k_components": 32,
+    "variance_explained": 0.9999999999999999,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 10,
+    "in_sample_range": [
+      "2023-04-05",
+      "2024-04-05"
+    ],
+    "out_of_sample_range": [
+      "2024-04-08",
+      "2024-07-08"
+    ],
+    "liquid_assets": 98,
+    "k_components": 34,
+    "variance_explained": 1.0000000000000004,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 11,
+    "in_sample_range": [
+      "2023-07-07",
+      "2024-07-08"
+    ],
+    "out_of_sample_range": [
+      "2024-07-09",
+      "2024-10-04"
+    ],
+    "liquid_assets": 98,
+    "k_components": 36,
+    "variance_explained": 0.9999999999999994,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 12,
+    "in_sample_range": [
+      "2023-10-05",
+      "2024-10-04"
+    ],
+    "out_of_sample_range": [
+      "2024-10-07",
+      "2025-01-06"
+    ],
+    "liquid_assets": 97,
+    "k_components": 35,
+    "variance_explained": 1.0000000000000002,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 13,
+    "in_sample_range": [
+      "2024-01-05",
+      "2025-01-06"
+    ],
+    "out_of_sample_range": [
+      "2025-01-07",
+      "2025-04-08"
+    ],
+    "liquid_assets": 97,
+    "k_components": 36,
+    "variance_explained": 0.9999999999999997,
+    "approved_assets": 2,
+    "trades_count": 5,
+    "net_return": 0.0531250506172094,
+    "sharpe": 1.086205957706913,
+    "max_drawdown": -0.06749886118870414
+  },
+  {
+    "window": 14,
+    "in_sample_range": [
+      "2024-04-08",
+      "2025-04-08"
+    ],
+    "out_of_sample_range": [
+      "2025-04-09",
+      "2025-07-10"
+    ],
+    "liquid_assets": 97,
+    "k_components": 31,
+    "variance_explained": 0.9999999999999999,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 15,
+    "in_sample_range": [
+      "2024-07-09",
+      "2025-07-10"
+    ],
+    "out_of_sample_range": [
+      "2025-07-11",
+      "2025-10-08"
+    ],
+    "liquid_assets": 98,
+    "k_components": 27,
+    "variance_explained": 0.9999999999999996,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  }
+]

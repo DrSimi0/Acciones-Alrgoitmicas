@@ -113,3 +113,20 @@ Este documento registra las decisiones técnicas clave, su contexto y sus justif
   2. Deducir formalmente el costo de préstamo de cortos (*short-borrow fee*) acumulado durante el ciclo de vida del trade directamente en su PnL neto individual y registrar el desglose por patas (`pnl_leg_a` y `pnl_leg_b`).
   3. Crear `run_fixed_pairs_pipeline()` en `run_pipeline.py` para evaluar pares de competidores directos omitiendo el filtro SSD, inyectándolos de forma directa al validador econométrico con control FDR al 5% y al filtro de calendario corporativo.
 * **Consecuencias:** Neutralidad nocional robusta, contabilidad de caja y préstamo de cortos exacta por trade, y capacidad de contrastar hipótesis fundamentales directas sin dependencia de minería de distancia.
+
+---
+
+## ADR 011: Pipeline de Producción PCA Multivariado en S&P 100 con Cobertura Sintética Market-Neutral (SPY Proxy)
+* **Fecha:** 2026-11-01
+* **Estado:** Aceptado
+* **Contexto:**
+  1. Escalar el sistema de arbitraje estadístico de pares bivariados a carteras de acciones de alta liquidez requiere desacoplar el riesgo idiosincrásico individual del riesgo de mercado general.
+  2. En el marco de Avellaneda & Lee (2010), cada acción individual que exhibe una desviación temporal en su residual estocástico $X_{i,t}$ se negocia no contra otra acción única, sino contra el mercado o factor sectorial proxy (ej. ETF `SPY`) escalado por su sensibilidad sistemática global ($\beta_{total} = \sum_{k=1}^K \beta_{i,k}$).
+* **Decisión:**
+  1. **Universo Amplio de Producción:** Adoptar los 100 activos del índice S&P 100 (OEX) más el ETF proxy `SPY` (101 activos en total) para el periodo 2021-2025 (1,254 barras sincronizadas).
+  2. **Filtro Dinámico de Liquidez In-Sample:** Descartar en cada ventana Walk-Forward activos con $\text{ADTV}_{20} < \$50\text{M}$ o precio $< \$10$ evaluados exclusivamente en las últimas 20 barras del periodo de formación (cero look-ahead bias).
+  3. **Extracción y Validación Econométrica:** Ajustar `PCAFactorModel(variance_threshold=0.80)` sobre los retornos in-sample de los activos líquidos. Validar los spreads sintéticos acumulados $X_{i,t}$ con `EconometricValidator.validate_pca_residuals` (ADF $p \le 0.05$, vida media OU $\le 30$ días, y control FDR Benjamini-Hochberg al 5%).
+  4. **Ejecución Long/Short Sintética (`synthetic_pca`):** Asignar 100% del capital de la orden a la acción individual (Pata Larga si subvaluada, Pata Corta si sobrevaluada) y tomar la posición contraria en el ETF proxy `SPY` escalada por $\beta_{total}$. Deducir daily borrow fees sobre la pata corta y registrar métricas independientes por pata (`pnl_leg_asset`, `pnl_leg_proxy`, `borrow_fees`, `commissions`).
+  5. **Orquestación Central:** Establecer `run_trading_pipeline()` como el flujo por defecto de `run_pipeline.py`.
+* **Consecuencias:** Cobertura market-neutral estricta frente a factores macroeconómicos, diversificación transversal a través del S&P 100 y mitigación matemática de minería de datos mediante FDR.
+

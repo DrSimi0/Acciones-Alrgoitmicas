@@ -109,6 +109,31 @@ class TestWalkForwardBacktester:
         expected_pnl = trade["pnl_leg_a"] + trade["pnl_leg_b"] - trade.get("commissions", 0.0) - trade["borrow_fees"]
         assert np.isclose(trade["pnl_net"], expected_pnl, atol=1e-5)
 
+    def test_synthetic_pca_capital_allocation_and_hedging(self):
+        dates = pd.date_range("2023-01-01", periods=4, freq="B")
+        # Activo subyacente A cotiza a $100, Proxy SPY B cotiza a $400
+        prices_a = pd.Series([100.0, 100.0, 100.0, 100.0], index=dates)
+        prices_b = pd.Series([400.0, 400.0, 400.0, 400.0], index=dates)
+        # Señal LONG_SPREAD (1)
+        signals = pd.Series([0, 1, 1, 0], index=dates)
+        beta_factor = pd.Series([1.2] * 4, index=dates)
+
+        init_cap = 100_000.0
+        backtester = WalkForwardBacktester(
+            initial_capital=init_cap,
+            capital_allocation_mode="synthetic_pca"
+        )
+        history, trades = backtester.simulate_pair(prices_a, prices_b, signals, beta_factor)
+
+        assert not trades.empty
+        trade = trades.iloc[0]
+        # Pata Larga: 100% de $100k al activo subyacente -> Shares A = 100,000 / 100.0 = 1000
+        assert np.isclose(trade["shares_a"], 1000.0, atol=1.0)
+        # Pata Corta: -100k * beta (1.2) = -$120,000 al proxy SPY -> Shares B = -120,000 / 400.0 = -300
+        assert np.isclose(trade["shares_b"], -300.0, atol=1.0)
+        assert "pnl_leg_asset" in trade
+        assert "pnl_leg_proxy" in trade
+
 
 class TestRiskManager:
 

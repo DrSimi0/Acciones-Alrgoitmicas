@@ -1,64 +1,107 @@
 """
 Script Central Coordinador — Pipeline de Producción (run_pipeline.py).
 
-Estrategia adoptada: Arbitraje Estadístico Sectorial (Semiconductores).
-Universo: 15 activos líderes de semiconductores (105 pares posibles).
-Configuración Econométrica y de Riesgo:
-- Preselección SSD Top-20 pares con log-precios normalizados (DistancePreselector).
-- Validación Econométrica con Rigor Pleno (Engle-Granger p <= 0.05, Half-Life <= 30d, FDR Benjamini-Hochberg alpha = 0.05).
-- Estimación secuencial del hedge ratio beta_t con Filtro de Kalman y monitoreo de incertidumbre (KalmanSpreadTracker).
-- Bandas dinámicas de entrada/salida adaptadas a volatilidad condicional GARCH/EWMA (SignalGenerator).
-- Simulación estricta t+1 con Hard Stop-Loss (-8% nocional) y costos bidireccionales completos (WalkForwardBacktester + RiskManager).
+Evolución Cuantitativa: Arbitraje Estadístico Multivariado por Análisis de Componentes
+Principales (PCA - Avellaneda & Lee, 2010) sobre el universo del S&P 100 (OEX).
+
+Flujo Arquitectónico:
+1. Ingesta Sincronizada S&P 100 (100 activos líderes + ETF proxy SPY).
+2. Filtro Dinámico de Liquidez en Ventana In-Sample (ADTV 20 días >= $50M, Precio >= $10).
+3. Extracción de Factores Sistemáticos (PCAFactorModel con umbral dinámico de varianza 80%).
+4. Rigor Econométrico sobre Spreads Residuales (ADF p <= 0.05, Half-Life OU <= 30d, FDR Benjamini-Hochberg alpha = 0.05).
+5. Ejecución Market-Neutral Long/Short Sintética:
+   - Posición 100% nocional en activo subyacente.
+   - Cobertura con ETF proxy (SPY) escalado por sum(beta_ik).
+   - Control de Cuarentena Corporativa (Earnings Blackout) y Hard Stop-Loss (-8%).
+   - Deducción diaria de borrow fees en patas cortas y costos bidireccionales completos.
+6. Exportación de auditoría completa a results/walk_forward_pca_sp100_LS.csv y .json.
 """
 
 import os
+import sys
 import json
 import logging
+from typing import Dict, List, Optional, Tuple, Any
+
 import pandas as pd
 import numpy as np
 
 from src.data import EquityDataLoader
 from src.universe import WalkForwardSplitter
 from src.selection import DistancePreselector
+from src.pca_model import PCAFactorModel
 from src.spread import EconometricValidator, KalmanSpreadTracker
 from src.signals import SignalGenerator
 from src.backtest import WalkForwardBacktester, MarketImpactModel, RiskManager, CorporateCalendarManager
 from src.metrics import PerformanceEvaluator
 
 
-def main():
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    logging.info("Iniciando Pipeline de Producción — Universo Sectorial de Semiconductores (15 activos, 105 pares, FDR=0.05)")
+# Lista oficial de componentes del S&P 100 (OEX)
+SP100_TICKERS = [
+    "AAPL", "ABBV", "ABT", "ACN", "ADBE", "AIG", "AMD", "AMGN", "AMZN", "AVGO",
+    "AXP", "BA", "BAC", "BK", "BKNG", "BLK", "BMY", "C", "CAT", "CHTR",
+    "CL", "CMCSA", "COF", "COP", "COST", "CRM", "CSCO", "CVS", "CVX", "DHR",
+    "DIS", "DOW", "DUK", "EMR", "EXC", "F", "FDX", "GD", "GE", "GILD",
+    "GM", "GOOG", "GOOGL", "GS", "HD", "HON", "IBM", "INTC", "INTU", "ISRG",
+    "JNJ", "JPM", "KHC", "KO", "LIN", "LLY", "LMT", "LOW", "MA", "MCD",
+    "MDLZ", "MDT", "MET", "META", "MMM", "MO", "MRK", "MS", "MSFT", "NEE",
+    "NFLX", "NKE", "NVDA", "ORCL", "PEP", "PFE", "PG", "PM", "PYPL", "QCOM",
+    "RTX", "SBUX", "SCHW", "SO", "SPG", "T", "TGT", "TMO", "TMUS", "TXN",
+    "UNH", "UNP", "UPS", "USB", "V", "VZ", "WFC", "WMT", "XOM"
+]
 
-    print("=" * 78)
-    print("SISTEMA CUANTITATIVO DE PAIRS TRADING — ESTRATEGIA SECTORIAL (SEMICONDUCTORES)")
-    print("=" * 78)
+ETF_PROXY = "SPY"
+
+
+def run_trading_pipeline(
+    start_date: str = "2021-01-01",
+    end_date: str = "2025-12-31",
+    min_adtv: float = 50_000_000.0,
+    min_price: float = 10.0,
+    variance_threshold: float = 0.80,
+    coint_pvalue_threshold: float = 0.05,
+    max_half_life: float = 30.0,
+    fdr_alpha: float = 0.05
+) -> None:
+    """
+    Pipeline de Producción Multivariado PCA con Ejecución Sintética Market-Neutral (Long/Short vs SPY).
+    """
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    logging.info("Iniciando Pipeline de Producción PCA — S&P 100 Market-Neutral (100 activos + SPY)")
+
+    print("=" * 82)
+    print("SISTEMA CUANTITATIVO DE STAT ARB — PIPELINE PCA S&P 100 (AVELLANEDA & LEE)")
+    print("=" * 82)
 
     os.makedirs("results", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
 
-    # 1. Ingesta de Datos con EquityDataLoader para el sector Semiconductores
-    semis_tickers = [
-        "NVDA", "AMD", "AVGO", "TSM", "ASML",
-        "QCOM", "TXN", "AMAT", "INTC", "MU",
-        "LRCX", "ADI", "KLAC", "NXPI", "MRVL"
-    ]
-    start_date = "2021-01-01"
-    end_date = "2025-12-31"
+    prices_cache_path = os.path.join("data", "sp100_prices.csv")
+    volumes_cache_path = os.path.join("data", "sp100_volumes.csv")
 
-    print(f"\n[1/5] Descargando precios reales vía yfinance ({len(semis_tickers)} activos)...")
-    print(f"      Activos: {', '.join(semis_tickers)}")
+    all_universe_tickers = sorted(list(set(SP100_TICKERS + [ETF_PROXY])))
+
+    print(f"\n[1/5] Ingesta de Mercado: S&P 100 ({len(SP100_TICKERS)} activos) + Proxy ({ETF_PROXY})...")
     print(f"      Periodo: {start_date} a {end_date}")
 
-    prices_df = EquityDataLoader.load_historical_prices(
-        tickers=semis_tickers,
-        start_date=start_date,
-        end_date=end_date
-    )
+    # Cargar de caché local si existe para acelerar ejecuciones
+    if os.path.exists(prices_cache_path) and os.path.exists(volumes_cache_path):
+        print("      Cargando historial desde caché local persistente (data/)...")
+        prices_df = pd.read_csv(prices_cache_path, index_col=0, parse_dates=True)
+        volumes_df = pd.read_csv(volumes_cache_path, index_col=0, parse_dates=True)
+    else:
+        print("      Descargando precios y volúmenes vía Yahoo Finance...")
+        prices_df, volumes_df = EquityDataLoader.load_historical_market_data(
+            tickers=all_universe_tickers,
+            start_date=start_date,
+            end_date=end_date
+        )
+        prices_df.to_csv(prices_cache_path)
+        volumes_df.to_csv(volumes_cache_path)
+        print("      Datos de mercado guardados en caché local.")
 
-    n_bars, n_assets = prices_df.shape
-    total_combinations = int(n_assets * (n_assets - 1) / 2)
-    print(f"      Descarga completada: {n_bars} barras diarias sincronizadas.")
-    print(f"      Pares combinatorios posibles por ventana: {total_combinations}")
+    n_bars, n_total_assets = prices_df.shape
+    print(f"      Base de datos sincronizada: {n_bars} barras diarias para {n_total_assets} activos.")
 
     # 2. Partición temporal Walk-Forward (252 barras In-Sample, 63 barras Out-of-Sample)
     formation_bars = 252
@@ -77,17 +120,18 @@ def main():
     )
     print(f"      Total de ventanas Walk-Forward generadas: {len(splits)}")
 
-    # 3. Inicialización de Componentes: Rigor Econométrico Pleno sobre Universo Sectorial Denso
-    preselector = DistancePreselector(top_n_pairs=20)  # Top-20 de los 105 pares
+    # 3. Inicialización de Motores Cuantitativos
     validator = EconometricValidator(
-        coint_pvalue_threshold=0.05,  # Rigor estricto del 5%
+        coint_pvalue_threshold=coint_pvalue_threshold,
         min_half_life=2.0,
-        max_half_life=30.0,           # Exigencia de reversión ágil (<= 30 días)
-        fdr_alpha=0.05                # Control de tasa de falsos descubrimientos al 5%
+        max_half_life=max_half_life,
+        fdr_alpha=fdr_alpha
     )
     signal_gen = SignalGenerator(
         base_entry_z=2.0,
         exit_z=0.5,
+        max_half_life_multiplier=3.0,
+        min_correlation_threshold=0.10,
         elastic_volatility=True
     )
     impact_model = MarketImpactModel(
@@ -96,306 +140,292 @@ def main():
         impact_parameter=0.05,
         short_borrow_rate_annual=0.02
     )
-    risk_manager = RiskManager(max_loss_pct=-0.08)  # Hard Stop-Loss del -8%
+    risk_manager = RiskManager(max_loss_pct=-0.08)
+
+    # Gestor de calendario corporativo sintético para todo el universo
     calendar_manager = CorporateCalendarManager.generate_synthetic_schedule(
-        tickers=semis_tickers,
+        tickers=all_universe_tickers,
         start_date=start_date,
-        end_date=end_date,
-        interval_days=90,
-        known_events={"AVGO": ["2024-12-13"]}
+        end_date=end_date
     )
+
     backtester = WalkForwardBacktester(
         initial_capital=100_000.0,
+        max_leverage=1.0,
         impact_model=impact_model,
         risk_manager=risk_manager,
         calendar_manager=calendar_manager,
-        max_leverage=1.0
+        capital_allocation_mode="synthetic_pca"
     )
 
-    # 4. Ejecución del Funnel Ventana por Ventana
-    print("\n[3/5] Ejecutando Funnel Cuantitativo (SSD Top-20 -> Econometría FDR=0.05 -> Kalman -> Riesgo)...")
-    summary_records = []
-    window_logs = []
-    all_candidates_audit = []
-    all_trades_records = []
+    print("\n[3/5] Ejecutando Simulación Walk-Forward Multivariada PCA:")
+    print(f"      - Filtro de Liquidez In-Sample: ADTV >= ${min_adtv:,.0f} | Precio >= ${min_price:.2f}")
+    print(f"      - Umbral de Varianza Explicada PCA: {variance_threshold:.0%}")
+    print(f"      - Validación Econométrica: ADF p <= {coint_pvalue_threshold}, Half-Life <= {max_half_life:.0f}d, FDR = {fdr_alpha:.2f}")
+    print(f"      - Ejecución: Long/Short Sintética (Activo vs Beta-Proxy SPY) con Costo de Préstamo (2% anual)")
 
-    for w_idx, (df_formation, df_trading) in enumerate(splits):
-        f_start = df_formation.index[0].strftime("%Y-%m-%d")
-        f_end = df_formation.index[-1].strftime("%Y-%m-%d")
-        t_start = df_trading.index[0].strftime("%Y-%m-%d")
-        t_end = df_trading.index[-1].strftime("%Y-%m-%d")
+    all_trades_records: List[Dict[str, Any]] = []
+    window_logs: List[Dict[str, Any]] = []
+    summary_records: List[Dict[str, Any]] = []
+    candidates_audit_records: List[Dict[str, Any]] = []
 
-        print(f"\n>>> VENTANA {w_idx + 1}/{len(splits)} <<<")
-        print(f"    Formación (IS) : {f_start} -> {f_end} ({len(df_formation)} barras)")
-        print(f"    Trading (OOS)  : {t_start} -> {t_end} ({len(df_trading)} barras)")
+    for window_idx, (formation_df, trading_df) in enumerate(splits, start=1):
+        is_start = formation_df.index[0].strftime("%Y-%m-%d")
+        is_end = formation_df.index[-1].strftime("%Y-%m-%d")
+        oos_start = trading_df.index[0].strftime("%Y-%m-%d")
+        oos_end = trading_df.index[-1].strftime("%Y-%m-%d")
 
-        # Paso 1: Preselección por Diferencia SSD (Top-20 pares)
-        candidates_df = preselector.select_top_candidates(df_formation)
-        candidate_pairs = [
-            (row["asset_a"], row["asset_b"]) for _, row in candidates_df.iterrows()
-        ]
-        print(f"    [Funnel 1] Pares preseleccionados por SSD: {len(candidate_pairs)} de {total_combinations}")
+        print(f"\n--- Ventana {window_idx:02d}/{len(splits):02d} | In-Sample: {is_start} -> {is_end} | OOS: {oos_start} -> {oos_end} ---")
 
-        # Paso 2: Validación Econométrica Rigurosa (p-val <= 0.05, FDR <= 0.05, HL <= 30)
-        validated_df = validator.validate_candidate_pairs(df_formation, candidate_pairs)
+        # In-sample data para activos individuales (excluyendo SPY del fit PCA)
+        available_stocks = [t for t in SP100_TICKERS if t in formation_df.columns]
+        is_stock_prices = formation_df[available_stocks]
+        is_stock_volumes = volumes_df.loc[formation_df.index, available_stocks]
 
-        if not validated_df.empty:
-            merged_candidates = validated_df.merge(
-                candidates_df[["asset_a", "asset_b", "ssd", "correlation"]],
-                on=["asset_a", "asset_b"],
-                how="left"
+        # Filtro de liquidez dinámico in-sample
+        liquid_assets = EquityDataLoader.filter_by_liquidity(
+            prices_df=is_stock_prices,
+            volumes_df=is_stock_volumes,
+            min_adtv=min_adtv,
+            min_price=min_price,
+            window=20
+        )
+        pct_liquid = (len(liquid_assets) / len(available_stocks)) if available_stocks else 0.0
+        print(f"    [Liquidez] {len(liquid_assets)}/{len(available_stocks)} activos líquidos ({pct_liquid:.1%})")
+
+        if len(liquid_assets) < 10:
+            print("    [!] Advertencia: Menos de 10 activos superaron el filtro de liquidez. Ventana omitida.")
+            continue
+
+        # Retornos del periodo de formación
+        is_returns = is_stock_prices[liquid_assets].pct_change().dropna()
+        if len(is_returns) < 50:
+            print("    [!] Advertencia: Historial de retornos insuficiente. Ventana omitida.")
+            continue
+
+        # Ajuste del Modelo PCA
+        pca = PCAFactorModel(variance_threshold=variance_threshold, use_svd=True)
+        try:
+            pca.fit(is_returns)
+        except Exception as e:
+            print(f"    [!] Error en ajuste PCA: {e}. Ventana omitida.")
+            continue
+
+        k_comp = pca.n_components_
+        cum_var = float(pca.cumulative_variance_ratio_[-1]) if pca.cumulative_variance_ratio_ is not None else 0.0
+        print(f"    [PCA] {k_comp} factores extraídos | Varianza explicada: {cum_var:.2%}")
+
+        # Extracción y validación econométrica de residuales sintéticos
+        residuals_is = pca.get_idiosyncratic_residuals()
+        audit_df = validator.validate_pca_residuals(residuals_is)
+
+        if audit_df.empty:
+            print("    [Econometría] No se pudieron calcular diagnósticos sobre residuales.")
+            continue
+
+        audit_df["window_id"] = window_idx
+        for _, row in audit_df.iterrows():
+            candidates_audit_records.append(row.to_dict())
+
+        approved_df = audit_df[audit_df["is_valid_residual"] == True]
+        approved_assets = list(approved_df["asset"].values)
+        print(f"    [Econometría] {len(approved_assets)}/{len(liquid_assets)} residuales aprobados (ADF + OU <= {max_half_life:.0f}d + FDR={fdr_alpha:.2f})")
+
+        if not approved_assets:
+            print("    [-] Sin activos aprobados para negociación en esta ventana OOS.")
+            window_logs.append({
+                "window": window_idx,
+                "in_sample_range": [is_start, is_end],
+                "out_of_sample_range": [oos_start, oos_end],
+                "liquid_assets": len(liquid_assets),
+                "k_components": k_comp,
+                "variance_explained": cum_var,
+                "approved_assets": 0,
+                "trades_count": 0,
+                "net_return": 0.0,
+                "sharpe": 0.0,
+                "max_drawdown": 0.0
+            })
+            continue
+
+        # Proyección de retornos y residuales fuera de muestra (OOS)
+        oos_stock_prices = trading_df[liquid_assets]
+        oos_returns = oos_stock_prices.pct_change().dropna()
+
+        residuals_oos = pca.get_idiosyncratic_residuals(oos_returns)
+
+        # Simulación independiente por cada activo aprobado contra el proxy ETF (SPY)
+        window_trades = []
+        window_pnl_list = []
+        window_metrics_list = []
+
+        spy_prices_oos = trading_df[ETF_PROXY]
+        spy_ret_oos = spy_prices_oos.pct_change().fillna(0.0)
+
+        for asset in approved_assets:
+            if asset not in trading_df.columns:
+                continue
+
+            stock_prices_oos = trading_df[asset]
+            stock_ret_oos = stock_prices_oos.pct_change().fillna(0.0)
+
+            # Suma de cargas factoriales: beta_total = sum(beta_ik)
+            loadings_series = pca.factor_loadings_.loc[asset]
+            beta_total = float(loadings_series.sum())
+            beta_effective = max(abs(beta_total), 0.1)
+
+            # Serie residual acumulada continua para evitar sesgos de calentamiento en Z-score
+            is_tail = residuals_is[asset].iloc[-60:]
+            shift_val = is_tail.iloc[-1]
+            continuous_spread = pd.concat([is_tail, residuals_oos[asset] + shift_val])
+            full_zscore = signal_gen.compute_zscore(continuous_spread, rolling_window=60)
+            oos_zscore = full_zscore.reindex(trading_df.index).fillna(0.0)
+
+            oos_spread = residuals_oos[asset].reindex(trading_df.index).ffill().bfill()
+
+            # Correlación móvil contemporánea con SPY
+            rolling_corr = stock_ret_oos.rolling(20, min_periods=5).corr(spy_ret_oos).bfill().fillna(0.5)
+
+            # Volatilidad condicional estimada vía GARCH/EWMA
+            cond_vol = signal_gen.garch_estimator.estimate_volatility(oos_spread.diff().dropna())
+
+            # Half-life estimada in-sample
+            hl_asset = float(approved_df.loc[approved_df["asset"] == asset, "half_life"].values[0])
+
+            # Generación de señales de trading
+            signals_df = signal_gen.generate_signals(
+                spread=oos_spread,
+                z_score=oos_zscore,
+                half_life=hl_asset,
+                rolling_correlation=rolling_corr,
+                conditional_vol=cond_vol
             )
-        else:
-            merged_candidates = pd.DataFrame()
+            positions = signals_df["position"]
 
-        approved_pairs = validated_df[validated_df["is_valid_pair"]] if not validated_df.empty else pd.DataFrame()
-        n_approved = len(approved_pairs)
-        print(f"    [Funnel 2] Pares validados (Cointegración + Half-Life <= 30d + FDR=0.05): {n_approved}")
+            # Ejecución en WalkForwardBacktester
+            beta_series = pd.Series(beta_effective, index=trading_df.index)
+            hist_df, trades_df = backtester.simulate_pair(
+                prices_a=stock_prices_oos,
+                prices_b=spy_prices_oos,
+                signals=positions,
+                hedge_ratio=beta_series,
+                signals_exit_reasons=signals_df["exit_reason"],
+                ticker_a=asset,
+                ticker_b=ETF_PROXY
+            )
 
-        # Registrar candidatos evaluados en esta ventana
-        if not merged_candidates.empty:
-            for _, cand_row in merged_candidates.iterrows():
-                pair_key = f"{cand_row['asset_a']}_{cand_row['asset_b']}"
-                rej_reasons = []
-                if not cand_row["is_cointegrated"]:
-                    rej_reasons.append(f"p-val={cand_row['p_value']:.4f}>0.05")
-                if not cand_row["is_half_life_valid"]:
-                    rej_reasons.append(f"HL={cand_row['half_life']:.1f}d no en [{validator.min_half_life}, {validator.max_half_life}]")
-                if not cand_row["fdr_approved"]:
-                    rej_reasons.append("Rechazado por FDR Benjamini-Hochberg (alpha=0.05)")
-
-                status_str = "APROBADO" if cand_row["is_valid_pair"] else "RECHAZADO (" + ", ".join(rej_reasons) + ")"
-
-                all_candidates_audit.append({
-                    "window": w_idx + 1,
-                    "formation_period": f"{f_start} a {f_end}",
-                    "trading_period": f"{t_start} a {t_end}",
-                    "pair": pair_key,
-                    "correlation": round(float(cand_row.get("correlation", 0.0)), 4),
-                    "ssd": round(float(cand_row.get("ssd", 0.0)), 2),
-                    "coint_stat": round(float(cand_row["coint_stat"]), 4),
-                    "p_value": round(float(cand_row["p_value"]), 4),
-                    "half_life": round(float(cand_row["half_life"]), 2) if not np.isinf(cand_row["half_life"]) else None,
-                    "is_cointegrated": bool(cand_row["is_cointegrated"]),
-                    "is_half_life_valid": bool(cand_row["is_half_life_valid"]),
-                    "fdr_approved": bool(cand_row["fdr_approved"]),
-                    "is_valid_pair": bool(cand_row["is_valid_pair"]),
-                    "status": status_str
-                })
-
-        if not merged_candidates.empty:
-            print("    [Auditoría Candidatos Top IS]:")
-            for _, c_row in merged_candidates.head(4).iterrows():
-                p_label = f"{c_row['asset_a']}/{c_row['asset_b']}"
-                p_val_lbl = f"{c_row['p_value']:.4f}"
-                hl_lbl = f"{c_row['half_life']:.1f}d" if not np.isinf(c_row['half_life']) else "inf"
-                corr_lbl = f"{c_row.get('correlation', 0.0):.2f}"
-                stat_lbl = "APROBADO" if c_row["is_valid_pair"] else "RECHAZADO"
-                print(f"      - {p_label:<10} | Corr: {corr_lbl:>5} | p-val: {p_val_lbl:>6} | HL: {hl_lbl:>6} -> {stat_lbl}")
-
-        w_record = {
-            "window": w_idx + 1,
-            "formation_start": f_start,
-            "formation_end": f_end,
-            "trading_start": t_start,
-            "trading_end": t_end,
-            "ssd_candidates": len(candidate_pairs),
-            "validated_pairs": n_approved,
-            "trades": []
-        }
-
-        if approved_pairs.empty:
-            print("    [Info] Ningún par superó los criterios econométricos en esta ventana. No se opera.")
-        else:
-            for _, pair_row in approved_pairs.iterrows():
-                a = pair_row["asset_a"]
-                b = pair_row["asset_b"]
-                hl = pair_row["half_life"]
-                coint_p = pair_row["p_value"]
-
-                p_a_oos = df_trading[a]
-                p_b_oos = df_trading[b]
-
-                # Filtro de Kalman secuencial con detección de ruptura
-                kalman = KalmanSpreadTracker(breakdown_threshold=5.0)
-                kalman_df = kalman.filter_series(p_a_oos, p_b_oos)
-
-                # Z-Score y volatilidad condicional GARCH/EWMA
-                z_score = signal_gen.compute_zscore(kalman_df["spread"], rolling_window=min(30, len(kalman_df)))
-                cond_vol = signal_gen.garch_estimator.estimate_volatility(kalman_df["spread"])
-
-                # Correlación móvil
-                ret_a = p_a_oos.pct_change()
-                ret_b = p_b_oos.pct_change()
-                roll_corr = ret_a.rolling(20, min_periods=5).corr(ret_b).fillna(1.0)
-
-                # Generación de Señales adaptativas con flag de ruptura Kalman
-                signals_df = signal_gen.generate_signals(
-                    spread=kalman_df["spread"],
-                    z_score=z_score,
-                    half_life=hl,
-                    rolling_correlation=roll_corr,
-                    conditional_vol=cond_vol,
-                    kalman_breakdown=kalman_df["is_broken"]
-                )
-
-                # Simulación de trading OOS con RiskManager (Stop-Loss -8%) y CorporateCalendarManager (Earnings Filter)
-                history_df, trades_df = backtester.simulate_pair(
-                    prices_a=p_a_oos,
-                    prices_b=p_b_oos,
-                    signals=signals_df["position"],
-                    hedge_ratio=kalman_df["beta"],
-                    signals_exit_reasons=signals_df["exit_reason"],
-                    ticker_a=a,
-                    ticker_b=b
-                )
-
-                # Evaluación de Métricas con PerformanceEvaluator
+            if not hist_df.empty and len(hist_df) >= 2:
                 metrics = PerformanceEvaluator.calculate_metrics(
-                    equity_curve=history_df["net_equity"],
-                    gross_equity_curve=history_df["gross_equity"],
+                    equity_curve=hist_df["net_equity"],
+                    gross_equity_curve=hist_df["gross_equity"],
                     trades_df=trades_df
                 )
+                window_metrics_list.append(metrics)
+                window_pnl_list.append(metrics.get("total_net_return", 0.0))
 
-                pair_name = f"{a}_{b}"
-                n_trades = len(trades_df)
-                ret_net = metrics.get("total_net_return", 0.0)
-                sharpe = metrics.get("sharpe_ratio", 0.0)
-                max_dd = metrics.get("max_drawdown", 0.0)
-                win_rate = metrics.get("win_rate", 0.0)
-                p_factor = metrics.get("profit_factor", 0.0)
+            if not trades_df.empty:
+                for _, trade_row in trades_df.iterrows():
+                    trade_dict = trade_row.to_dict()
+                    trade_dict["window_id"] = window_idx
+                    trade_dict["asset"] = asset
+                    trade_dict["proxy"] = ETF_PROXY
+                    trade_dict["beta_total"] = beta_total
+                    window_trades.append(trade_dict)
+                    all_trades_records.append(trade_dict)
 
-                print(f"      * Par: {pair_name:<10} | p-val: {coint_p:.4f} | HL: {hl:.1f}d | Trades: {n_trades} | Ret Neto: {ret_net:>7.2%} | Sharpe: {sharpe:>5.2f} | MaxDD: {max_dd:>7.2%}")
+        avg_ret = float(np.mean(window_pnl_list)) if window_pnl_list else 0.0
+        avg_sharpe = float(np.mean([m.get("sharpe_ratio", 0.0) for m in window_metrics_list])) if window_metrics_list else 0.0
+        max_dd = float(np.min([m.get("max_drawdown", 0.0) for m in window_metrics_list])) if window_metrics_list else 0.0
 
-                # Log de trades individuales y acumulación para auditoría
-                if not trades_df.empty:
-                    for _, tr in trades_df.iterrows():
-                        d_in = str(tr["entry_date"])[:10]
-                        d_out = str(tr["exit_date"])[:10]
-                        dr = tr["direction"]
-                        pnl = float(tr.get("pnl_net", 0.0))
-                        ret_p = float(tr.get("return_pct", 0.0))
-                        reason = tr.get("exit_reason", "none")
-                        print(f"        -> Trade: {dr} | {d_in} a {d_out} | PnL: ${pnl:>9.2f} ({ret_p:>6.2%}) | Salida: {reason}")
+        print(f"    [Trading OOS] {len(window_trades)} operaciones ejecutadas.")
+        print(f"    [Rendimiento] Retorno Neto: {avg_ret:.2%} | Sharpe: {avg_sharpe:.2f} | Max DD: {max_dd:.2%}")
 
-                        all_trades_records.append({
-                            "window": w_idx + 1,
-                            "pair": pair_name,
-                            "direction": dr,
-                            "entry_date": d_in,
-                            "exit_date": d_out,
-                            "entry_price_a": tr.get("entry_price_a"),
-                            "entry_price_b": tr.get("entry_price_b"),
-                            "exit_price_a": tr.get("exit_price_a"),
-                            "exit_price_b": tr.get("exit_price_b"),
-                            "shares_a": tr.get("shares_a"),
-                            "shares_b": tr.get("shares_b"),
-                            "initial_notional": tr.get("initial_notional"),
-                            "pnl_net": pnl,
-                            "return_pct": ret_p,
-                            "exit_reason": reason
-                        })
+        w_summary = {
+            "window": window_idx,
+            "in_sample_range": [is_start, is_end],
+            "out_of_sample_range": [oos_start, oos_end],
+            "liquid_assets": len(liquid_assets),
+            "k_components": k_comp,
+            "variance_explained": cum_var,
+            "approved_assets": len(approved_assets),
+            "trades_count": len(window_trades),
+            "net_return": avg_ret,
+            "sharpe": avg_sharpe,
+            "max_drawdown": max_dd
+        }
+        window_logs.append(w_summary)
+        summary_records.append({
+            "window": window_idx,
+            "net_return": avg_ret,
+            "sharpe": avg_sharpe,
+            "max_drawdown": max_dd,
+            "trades": len(window_trades),
+            "approved_assets": len(approved_assets)
+        })
 
-                summary_records.append({
-                    "window": w_idx + 1,
-                    "pair": pair_name,
-                    "coint_pvalue": coint_p,
-                    "half_life": hl,
-                    "trades": n_trades,
-                    "net_return": ret_net,
-                    "gross_return": metrics.get("total_gross_return", 0.0),
-                    "friction_drag": metrics.get("friction_drag", 0.0),
-                    "sharpe": sharpe,
-                    "max_drawdown": max_dd,
-                    "win_rate": win_rate,
-                    "profit_factor": p_factor,
-                    "expectancy": metrics.get("expectancy_per_trade", 0.0)
-                })
+    # 4. Exportación y Resumen Final
+    print("\n[4/5] Guardando registros cuantitativos...")
 
-        window_logs.append(w_record)
-
-    # 5. Exportación y Resumen Consolidado
-    print("\n[4/5] Exportando resultados consolidados...")
-    output_csv = "results/walk_forward_real_universe.csv"
-    output_json = "results/walk_forward_real_universe.json"
-    audit_csv = "results/real_universe_candidates_audit.csv"
-    trades_csv = "results/trades_real_universe.csv"
-
-    # Exportar también con el prefijo exp_B para compatibilidad histórica
-    output_b_csv = "results/walk_forward_exp_B_semis.csv"
-    trades_b_csv = "results/trades_exp_B_semis.csv"
-    audit_b_csv = "results/exp_B_candidates_audit.csv"
-    json_b = "results/walk_forward_exp_B_semis.json"
-
-    if all_candidates_audit:
-        df_audit = pd.DataFrame(all_candidates_audit)
-        df_audit.to_csv(audit_csv, index=False)
-        df_audit.to_csv(audit_b_csv, index=False)
-        print(f"      Auditoría de candidatos guardada en: {audit_csv} ({len(all_candidates_audit)} pares evaluados)")
+    output_csv = "results/walk_forward_pca_sp100_LS.csv"
+    output_json = "results/walk_forward_pca_sp100_LS.json"
+    trades_csv = "results/trades_pca_sp100_LS.csv"
+    candidates_audit_csv = "results/pca_sp100_candidates_audit.csv"
 
     if summary_records:
         df_summary = pd.DataFrame(summary_records)
         df_summary.to_csv(output_csv, index=False)
-        df_summary.to_csv(output_b_csv, index=False)
-        print(f"      Archivo CSV de ventanas generado: {output_csv}")
+        print(f"      Archivo CSV de ventanas guardado: {output_csv}")
     else:
-        print("      No se generaron registros de ventanas operadas.")
         pd.DataFrame().to_csv(output_csv, index=False)
-        pd.DataFrame().to_csv(output_b_csv, index=False)
 
     if all_trades_records:
         df_trades_all = pd.DataFrame(all_trades_records)
         df_trades_all.to_csv(trades_csv, index=False)
-        df_trades_all.to_csv(trades_b_csv, index=False)
-        print(f"      Registro de operaciones detalladas guardado en: {trades_csv} ({len(df_trades_all)} trades)")
+        print(f"      Detalle de operaciones guardado: {trades_csv} ({len(df_trades_all)} trades)")
     else:
-        print("      No se ejecutaron operaciones en las ventanas OOS.")
         pd.DataFrame().to_csv(trades_csv, index=False)
-        pd.DataFrame().to_csv(trades_b_csv, index=False)
+        print("      No se registraron operaciones en el periodo de backtest.")
+
+    if candidates_audit_records:
+        df_audit = pd.DataFrame(candidates_audit_records)
+        df_audit.to_csv(candidates_audit_csv, index=False)
+        print(f"      Auditoría econométrica guardada: {candidates_audit_csv} ({len(df_audit)} evaluaciones)")
 
     with open(output_json, "w") as f:
         json.dump(window_logs, f, indent=2)
-    with open(json_b, "w") as f:
-        json.dump(window_logs, f, indent=2)
-    print(f"      Archivo JSON detallado: {output_json}")
+    print(f"      Log JSON completo guardado: {output_json}")
 
-    print("\n[5/5] Resumen Global de Producción (Semiconductores):")
+    print("\n[5/5] Resumen Consolidado Global — Stat Arb PCA S&P 100:")
     if summary_records:
         df_sum = pd.DataFrame(summary_records)
         total_trades = df_sum["trades"].sum()
         avg_sharpe = df_sum["sharpe"].mean()
         avg_ret = df_sum["net_return"].mean()
-        max_dd_overall = df_sum["max_drawdown"].min()
+        worst_dd = df_sum["max_drawdown"].min()
         print(f"      Total operaciones ejecutadas OOS : {total_trades}")
         print(f"      Retorno Neto promedio por ventana: {avg_ret:.2%}")
-        print(f"      Sharpe promedio OOS              : {avg_sharpe:.2f}")
-        print(f"      Peor Drawdown registrado         : {max_dd_overall:.2%}")
+        print(f"      Ratio de Sharpe promedio OOS     : {avg_sharpe:.2f}")
+        print(f"      Peor Drawdown registrado         : {worst_dd:.2%}")
 
     if all_trades_records:
         df_tr = pd.DataFrame(all_trades_records)
         print("\n      Distribución de Motivos de Salida (exit_reason):")
         for reason, count in df_tr["exit_reason"].value_counts().items():
-            print(f"        - {reason:<22}: {count:>3} trades ({count / len(df_tr):.1%})")
+            print(f"        - {reason:<24}: {count:>3} trades ({count / len(df_tr):.1%})")
 
-    print("\n" + "=" * 78)
-    print("PIPELINE DE PRODUCCIÓN FINALIZADO CON ÉXITO")
-    print("=" * 78)
+        if "return_pct" in df_tr.columns:
+            wins = (df_tr["return_pct"] > 0).sum()
+            win_rate = wins / len(df_tr)
+            print(f"      Tasa de Acierto (Win Rate)       : {win_rate:.1%} ({wins}/{len(df_tr)})")
+
+    print("\n" + "=" * 82)
+    print("PIPELINE PCA S&P 100 MARKET-NEUTRAL FINALIZADO CON ÉXITO")
+    print("=" * 82)
 
 
 def run_fixed_pairs_pipeline():
     """
     Pipeline Experimental: Pares Fijos Fundamentales con Ejecución Market-Neutral Long/Short Simétrica.
-
-    Universo: 5 pares de competidores directos de alta capitalización:
-    - [("KO", "PEP"), ("V", "MA"), ("CVX", "XOM"), ("HD", "LOW"), ("UNP", "CSX")]
-
-    Características:
-    - Omite la preselección SSD (pares definidos a priori por fundamentales).
-    - Inyecta directamente los pares al EconometricValidator (Engle-Granger p <= 0.05, Half-Life <= 30d, FDR=0.05).
-    - Aplica Filtro de Calendario Corporativo (CorporateCalendarManager: cuarentena de 3 días y evacuación preventiva).
-    - Simulación con WalkForwardBacktester en modo 'symmetric_50_50' (asignación 50/50 Long/Short con cobertura beta).
-    - Deducción rigurosa de costos bidireccionales y préstamo de cortos (short-borrow fee).
-    - Exporta resultados a results/walk_forward_fixed_pairs_LS.csv y .json.
     """
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     logging.info("Iniciando Pipeline de Pares Fijos Fundamentales — Modo Market-Neutral Long/Short (50/50)")
@@ -406,7 +436,6 @@ def run_fixed_pairs_pipeline():
 
     os.makedirs("results", exist_ok=True)
 
-    # 1. Definición de Pares Fijos y Descarga de Datos
     fixed_pairs = [
         ("KO", "PEP"),    # Bebidas / Consumo defensivo
         ("V", "MA"),      # Redes de pagos / Fintech
@@ -419,27 +448,15 @@ def run_fixed_pairs_pipeline():
     end_date = "2025-12-31"
 
     print(f"\n[1/5] Descargando precios reales vía yfinance ({len(unique_tickers)} activos, {len(fixed_pairs)} pares fijos)...")
-    print(f"      Activos: {', '.join(unique_tickers)}")
-    print(f"      Pares  : {', '.join([f'{a}/{b}' for a, b in fixed_pairs])}")
-    print(f"      Periodo: {start_date} a {end_date}")
-
     prices_df = EquityDataLoader.load_historical_prices(
         tickers=unique_tickers,
         start_date=start_date,
         end_date=end_date
     )
 
-    n_bars, n_assets = prices_df.shape
-    print(f"      Descarga completada: {n_bars} barras diarias sincronizadas.")
-
-    # 2. Partición temporal Walk-Forward (252 barras In-Sample, 63 barras Out-of-Sample)
     formation_bars = 252
     trading_bars = 63
     step_bars = 63
-
-    print(f"\n[2/5] Particionando historial con WalkForwardSplitter...")
-    print(f"      Ventana de formación (In-Sample): {formation_bars} barras (~1 año)")
-    print(f"      Ventana de negociación (Out-of-Sample): {trading_bars} barras (~1 trimestre)")
 
     splits = WalkForwardSplitter.split(
         data=prices_df,
@@ -447,21 +464,14 @@ def run_fixed_pairs_pipeline():
         trading_bars=trading_bars,
         step_bars=step_bars
     )
-    print(f"      Total de ventanas Walk-Forward generadas: {len(splits)}")
 
-    # 3. Inicialización de Componentes: Rigor Econométrico + Calendario + Backtester L/S 50/50
-    # Omitimos DistancePreselector (inyección directa de fixed_pairs)
     validator = EconometricValidator(
         coint_pvalue_threshold=0.05,
         min_half_life=2.0,
         max_half_life=30.0,
         fdr_alpha=0.05
     )
-    signal_gen = SignalGenerator(
-        base_entry_z=2.0,
-        exit_z=0.5,
-        elastic_volatility=True
-    )
+    signal_gen = SignalGenerator(base_entry_z=2.0, exit_z=0.5, elastic_volatility=True)
     impact_model = MarketImpactModel(
         commission_bps=1.5,
         bid_ask_spread_bps=3.0,
@@ -472,253 +482,138 @@ def run_fixed_pairs_pipeline():
     calendar_manager = CorporateCalendarManager.generate_synthetic_schedule(
         tickers=unique_tickers,
         start_date=start_date,
-        end_date=end_date,
-        interval_days=90
+        end_date=end_date
     )
+
     backtester = WalkForwardBacktester(
         initial_capital=100_000.0,
+        max_leverage=1.0,
         impact_model=impact_model,
         risk_manager=risk_manager,
         calendar_manager=calendar_manager,
-        max_leverage=1.0,
         capital_allocation_mode="symmetric_50_50"
     )
 
-    print("\n[3/5] Ejecutando simulación Walk-Forward sobre pares fijos...")
-    summary_records = []
-    all_trades_records = []
-    window_logs = []
-    all_candidates_audit = []
+    all_trades_records: List[Dict[str, Any]] = []
+    window_logs: List[Dict[str, Any]] = []
+    summary_records: List[Dict[str, Any]] = []
+    candidates_audit_records: List[Dict[str, Any]] = []
 
-    for w_idx, (formation_df, trading_df) in enumerate(splits):
-        f_start = formation_df.index[0].strftime("%Y-%m-%d")
-        f_end = formation_df.index[-1].strftime("%Y-%m-%d")
-        t_start = trading_df.index[0].strftime("%Y-%m-%d")
-        t_end = trading_df.index[-1].strftime("%Y-%m-%d")
+    for window_idx, (formation_df, trading_df) in enumerate(splits, start=1):
+        is_start = formation_df.index[0].strftime("%Y-%m-%d")
+        is_end = formation_df.index[-1].strftime("%Y-%m-%d")
+        oos_start = trading_df.index[0].strftime("%Y-%m-%d")
+        oos_end = trading_df.index[-1].strftime("%Y-%m-%d")
 
-        print(f"\n--- Ventana {w_idx + 1}/{len(splits)} | Formación: {f_start} a {f_end} | Trading: {t_start} a {t_end} ---")
-
-        # Inyección directa de fixed_pairs al validador econométrico (sin SSD)
-        validated_pairs_df = validator.validate_candidate_pairs(
-            formation_prices=formation_df,
-            candidate_pairs=fixed_pairs
+        audit_df = validator.validate_candidate_pairs(
+            candidate_pairs=fixed_pairs,
+            prices_df=formation_df
         )
+        audit_df["window_id"] = window_idx
+        for _, row in audit_df.iterrows():
+            candidates_audit_records.append(row.to_dict())
 
-        # Auditoría de los 5 pares en cada ventana
-        if not validated_pairs_df.empty:
-            for _, r in validated_pairs_df.iterrows():
-                p_a, p_b = r["asset_a"], r["asset_b"]
-                corr_val = formation_df[p_a].corr(formation_df[p_b])
+        valid_pairs_df = audit_df[audit_df["is_valid_pair"] == True]
+        valid_pairs = [tuple(p) for p in valid_pairs_df["pair"].values]
 
-                status_str = "APROBADO" if r["is_valid_pair"] else "RECHAZADO"
-                reasons = []
-                if not r["is_cointegrated"]:
-                    reasons.append(f"p-val={r['p_value']:.4f}>0.05")
-                if not r["is_half_life_valid"]:
-                    reasons.append(f"HL={r['half_life']:.1f}d no en [2, 30]")
-                if not r["fdr_approved"]:
-                    reasons.append("Rechazado por FDR Benjamini-Hochberg (alpha=0.05)")
+        window_trades = []
+        window_pnl_list = []
+        window_metrics_list = []
 
-                all_candidates_audit.append({
-                    "window": w_idx + 1,
-                    "formation_period": f"{f_start} a {f_end}",
-                    "trading_period": f"{t_start} a {t_end}",
-                    "pair": f"{p_a}_{p_b}",
-                    "correlation": round(corr_val, 4),
-                    "coint_stat": round(r["coint_stat"], 4),
-                    "p_value": round(r["p_value"], 4),
-                    "half_life": round(r["half_life"], 2),
-                    "is_cointegrated": bool(r["is_cointegrated"]),
-                    "is_half_life_valid": bool(r["is_half_life_valid"]),
-                    "fdr_approved": bool(r["fdr_approved"]),
-                    "is_valid_pair": bool(r["is_valid_pair"]),
-                    "rejection_reason": f"{status_str} ({', '.join(reasons)})" if reasons else status_str
-                })
+        for pair in valid_pairs:
+            asset_a, asset_b = pair
+            p_a_form = formation_df[asset_a]
+            p_b_form = formation_df[asset_b]
 
-        if validated_pairs_df.empty:
-            print("      No se pudieron validar los pares fijos en la ventana.")
-            continue
+            beta_tracker = KalmanSpreadTracker(delta=1e-4, vt_param=1e-3)
+            beta_series_form, spread_series_form, error_var_form = beta_tracker.fit_transform(p_a_form, p_b_form)
 
-        valid_pairs = validated_pairs_df[validated_pairs_df["is_valid_pair"] == True]
-        print(f"      Pares fijos evaluados: {len(fixed_pairs)} | Cointegrados y aprobados por FDR: {len(valid_pairs)}")
+            p_a_trade = trading_df[asset_a]
+            p_b_trade = trading_df[asset_b]
 
-        w_record = {
-            "window": w_idx + 1,
-            "formation_start": f_start,
-            "formation_end": f_end,
-            "trading_start": t_start,
-            "trading_end": t_end,
-            "fixed_pairs": len(fixed_pairs),
-            "validated_pairs": len(valid_pairs),
-            "trades": []
-        }
+            beta_trade, spread_trade, error_var_trade, breakdown_trade = beta_tracker.filter_online(
+                p_a_trade, p_b_trade, freeze_beta=False
+            )
 
-        if valid_pairs.empty:
-            print("      Ningún par fijo superó el rigor econométrico en esta ventana.")
-            window_logs.append(w_record)
-            continue
+            continuous_spread = pd.concat([spread_series_form.iloc[-60:], spread_trade])
+            full_zscore = signal_gen.compute_zscore(continuous_spread, rolling_window=60)
+            oos_zscore = full_zscore.loc[trading_df.index]
 
-        for _, pair_row in valid_pairs.iterrows():
-            a = pair_row["asset_a"]
-            b = pair_row["asset_b"]
-            pair_name = f"{a}_{b}"
-            coint_p = pair_row["p_value"]
-            hl = pair_row["half_life"]
+            rolling_corr = p_a_trade.pct_change().rolling(20).corr(p_b_trade.pct_change()).bfill().fillna(0.5)
+            cond_vol = signal_gen.garch_estimator.estimate_volatility(spread_trade.diff().dropna())
 
-            p_a_oos = trading_df[a]
-            p_b_oos = trading_df[b]
+            hl = float(valid_pairs_df.loc[valid_pairs_df["pair"] == pair, "half_life"].values[0])
 
-            # Filtro de Kalman secuencial con detección de ruptura
-            kalman = KalmanSpreadTracker(breakdown_threshold=5.0)
-            kalman_df = kalman.filter_series(p_a_oos, p_b_oos)
-
-            # Z-Score y volatilidad condicional GARCH/EWMA
-            z_score = signal_gen.compute_zscore(kalman_df["spread"], rolling_window=min(30, len(kalman_df)))
-            cond_vol = signal_gen.garch_estimator.estimate_volatility(kalman_df["spread"])
-
-            # Correlación móvil
-            ret_a = p_a_oos.pct_change()
-            ret_b = p_b_oos.pct_change()
-            roll_corr = ret_a.rolling(20, min_periods=5).corr(ret_b).fillna(1.0)
-
-            # Generación de Señales adaptativas con flag de ruptura Kalman
             signals_df = signal_gen.generate_signals(
-                spread=kalman_df["spread"],
-                z_score=z_score,
+                spread=spread_trade,
+                z_score=oos_zscore,
                 half_life=hl,
-                rolling_correlation=roll_corr,
+                rolling_correlation=rolling_corr,
                 conditional_vol=cond_vol,
-                kalman_breakdown=kalman_df["is_broken"]
+                kalman_breakdown=breakdown_trade
             )
+            positions = signals_df["position"]
 
-            # Simulación de trading OOS con RiskManager (Stop-Loss -8%) y CorporateCalendarManager (Earnings Filter)
-            history_df, trades_df = backtester.simulate_pair(
-                prices_a=p_a_oos,
-                prices_b=p_b_oos,
-                signals=signals_df["position"],
-                hedge_ratio=kalman_df["beta"],
+            hist_df, trades_df = backtester.simulate_pair(
+                prices_a=p_a_trade,
+                prices_b=p_b_trade,
+                signals=positions,
+                hedge_ratio=beta_trade,
                 signals_exit_reasons=signals_df["exit_reason"],
-                ticker_a=a,
-                ticker_b=b
+                ticker_a=asset_a,
+                ticker_b=asset_b
             )
 
-            # Evaluación de Métricas con PerformanceEvaluator
-            metrics = PerformanceEvaluator.calculate_metrics(
-                equity_curve=history_df["net_equity"],
-                gross_equity_curve=history_df["gross_equity"],
-                trades_df=trades_df
-            )
-            n_trades = len(trades_df)
-            ret_net = metrics.get("total_net_return", 0.0)
-            sharpe = metrics.get("sharpe_ratio", 0.0)
-            max_dd = metrics.get("max_drawdown", 0.0)
-            win_rate = metrics.get("win_rate", 0.0)
-            p_factor = metrics.get("profit_factor", 0.0)
-
-            print(f"      [Operado: {pair_name}] Trades: {n_trades} | Ret Neto: {ret_net:.2%} | Sharpe: {sharpe:.2f} | MaxDD: {max_dd:.2%}")
+            if not hist_df.empty and len(hist_df) >= 2:
+                metrics = PerformanceEvaluator.calculate_metrics(
+                    equity_curve=hist_df["net_equity"],
+                    gross_equity_curve=hist_df["gross_equity"],
+                    trades_df=trades_df
+                )
+                window_metrics_list.append(metrics)
+                window_pnl_list.append(metrics.get("total_net_return", 0.0))
 
             if not trades_df.empty:
-                for _, t_row in trades_df.iterrows():
-                    d_in = str(t_row["entry_date"])[:10]
-                    d_out = str(t_row["exit_date"])[:10]
-                    dr = t_row["direction"]
-                    pnl = float(t_row.get("pnl_net", 0.0))
-                    ret_p = float(t_row.get("return_pct", 0.0))
-                    reason = t_row.get("exit_reason", "none")
-                    print(f"        -> Trade: {dr} | {d_in} a {d_out} | PnL: ${pnl:>9.2f} ({ret_p:>6.2%}) | Salida: {reason}")
+                for _, trade_row in trades_df.iterrows():
+                    trade_dict = trade_row.to_dict()
+                    trade_dict["window_id"] = window_idx
+                    trade_dict["pair"] = f"{asset_a}/{asset_b}"
+                    window_trades.append(trade_dict)
+                    all_trades_records.append(trade_dict)
 
-                    t_dict = t_row.to_dict()
-                    t_dict["window"] = w_idx + 1
-                    t_dict["pair"] = pair_name
-                    all_trades_records.append(t_dict)
-                    w_record["trades"].append({
-                        "pair": pair_name,
-                        "direction": t_dict["direction"],
-                        "entry": str(t_dict["entry_date"])[:10],
-                        "exit": str(t_dict["exit_date"])[:10],
-                        "pnl_net": t_dict["pnl_net"],
-                        "return_pct": t_dict["return_pct"],
-                        "pnl_leg_a": t_dict.get("pnl_leg_a", 0.0),
-                        "pnl_leg_b": t_dict.get("pnl_leg_b", 0.0),
-                        "borrow_fees": t_dict.get("borrow_fees", 0.0),
-                        "exit_reason": t_dict.get("exit_reason", "unknown")
-                    })
+        avg_ret = float(np.mean(window_pnl_list)) if window_pnl_list else 0.0
+        avg_sharpe = float(np.mean([m.get("sharpe_ratio", 0.0) for m in window_metrics_list])) if window_metrics_list else 0.0
+        max_dd = float(np.min([m.get("max_drawdown", 0.0) for m in window_metrics_list])) if window_metrics_list else 0.0
 
-            summary_records.append({
-                "window": w_idx + 1,
-                "pair": pair_name,
-                "coint_pvalue": coint_p,
-                "half_life": hl,
-                "trades": n_trades,
-                "net_return": ret_net,
-                "gross_return": metrics.get("total_gross_return", 0.0),
-                "friction_drag": metrics.get("friction_drag", 0.0),
-                "sharpe": sharpe,
-                "max_drawdown": max_dd,
-                "win_rate": win_rate,
-                "profit_factor": p_factor,
-                "expectancy": metrics.get("expectancy_per_trade", 0.0)
-            })
+        summary_records.append({
+            "window": window_idx,
+            "net_return": avg_ret,
+            "sharpe": avg_sharpe,
+            "max_drawdown": max_dd,
+            "trades": len(window_trades),
+            "cointegrated_pairs": len(valid_pairs)
+        })
 
-        window_logs.append(w_record)
-
-    # 4. Exportación de Resultados
-    print("\n[4/5] Exportando resultados consolidados de Pares Fijos L/S...")
     output_csv = "results/walk_forward_fixed_pairs_LS.csv"
-    output_json = "results/walk_forward_fixed_pairs_LS.json"
-    audit_csv = "results/fixed_pairs_candidates_audit.csv"
     trades_csv = "results/trades_fixed_pairs_LS.csv"
-
-    if all_candidates_audit:
-        df_audit = pd.DataFrame(all_candidates_audit)
-        df_audit.to_csv(audit_csv, index=False)
-        print(f"      Auditoría de candidatos guardada en: {audit_csv} ({len(all_candidates_audit)} registros)")
+    output_json = "results/walk_forward_fixed_pairs_LS.json"
 
     if summary_records:
-        df_summary = pd.DataFrame(summary_records)
-        df_summary.to_csv(output_csv, index=False)
-        print(f"      Archivo CSV de ventanas generado: {output_csv}")
-    else:
-        print("      No se generaron registros de ventanas operadas.")
-        pd.DataFrame().to_csv(output_csv, index=False)
-
+        pd.DataFrame(summary_records).to_csv(output_csv, index=False)
     if all_trades_records:
-        df_trades_all = pd.DataFrame(all_trades_records)
-        df_trades_all.to_csv(trades_csv, index=False)
-        print(f"      Registro de operaciones detalladas guardado en: {trades_csv} ({len(df_trades_all)} trades)")
-    else:
-        print("      No se ejecutaron operaciones en las ventanas OOS.")
-        pd.DataFrame().to_csv(trades_csv, index=False)
-
+        pd.DataFrame(all_trades_records).to_csv(trades_csv, index=False)
     with open(output_json, "w") as f:
-        json.dump(window_logs, f, indent=2)
-    print(f"      Archivo JSON detallado: {output_json}")
+        json.dump(summary_records, f, indent=2)
 
-    print("\n[5/5] Resumen Global de Pares Fijos Fundamentales (Long/Short 50/50):")
-    if summary_records:
-        df_sum = pd.DataFrame(summary_records)
-        total_trades = df_sum["trades"].sum()
-        avg_sharpe = df_sum["sharpe"].mean()
-        avg_ret = df_sum["net_return"].mean()
-        max_dd_overall = df_sum["max_drawdown"].min()
-        print(f"      Total operaciones ejecutadas OOS : {total_trades}")
-        print(f"      Retorno Neto promedio por ventana: {avg_ret:.2%}")
-        print(f"      Sharpe promedio OOS              : {avg_sharpe:.2f}")
-        print(f"      Peor Drawdown registrado         : {max_dd_overall:.2%}")
+    print("Pipeline de Pares Fijos finalizado.")
 
-    if all_trades_records:
-        df_tr = pd.DataFrame(all_trades_records)
-        print("\n      Distribución de Motivos de Salida (exit_reason):")
-        for reason, count in df_tr["exit_reason"].value_counts().items():
-            print(f"        - {reason:<22}: {count:>3} trades ({count / len(df_tr):.1%})")
 
-    print("\n" + "=" * 78)
-    print("PIPELINE DE PARES FIJOS L/S FINALIZADO CON ÉXITO")
-    print("=" * 78)
+def main():
+    """Punto de entrada principal: ejecuta por defecto el Pipeline Multivariado PCA S&P 100."""
+    run_trading_pipeline()
 
 
 if __name__ == "__main__":
-    import sys
     if len(sys.argv) > 1 and sys.argv[1] in ("--fixed-pairs", "-f", "fixed_pairs"):
         run_fixed_pairs_pipeline()
     else:
