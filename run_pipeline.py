@@ -54,7 +54,7 @@ ETF_PROXY = "SPY"
 
 
 def run_trading_pipeline(
-    start_date: str = "2021-01-01",
+    start_date: str = "2015-01-01",
     end_date: str = "2025-12-31",
     min_adtv: float = 50_000_000.0,
     min_price: float = 10.0,
@@ -66,19 +66,20 @@ def run_trading_pipeline(
 ) -> None:
     """
     Pipeline de Producción Multivariado PCA con Ejecución Sintética Market-Neutral (Long/Short vs SPY).
+    Configuración Oficial de Producción: Horizonte de 10 Años (2015-2025), Varianza 80%, Half-Life 12d, Exit Z 0.75.
     """
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    logging.info("Iniciando Pipeline de Producción PCA — S&P 100 Market-Neutral (100 activos + SPY)")
+    logging.info("Iniciando Pipeline de Producción PCA — S&P 100 Market-Neutral (100 activos + SPY) [10 AÑOS]")
 
     print("=" * 82)
-    print("SISTEMA CUANTITATIVO DE STAT ARB — PIPELINE PCA S&P 100 (AVELLANEDA & LEE)")
+    print("SISTEMA CUANTITATIVO DE STAT ARB — PIPELINE PCA S&P 100 (CONFIGURACIÓN DE PRODUCCIÓN 10Y)")
     print("=" * 82)
 
     os.makedirs("results", exist_ok=True)
     os.makedirs("data", exist_ok=True)
 
-    prices_cache_path = os.path.join("data", "sp100_prices.csv")
-    volumes_cache_path = os.path.join("data", "sp100_volumes.csv")
+    prices_cache_path = os.path.join("data", "sp100_prices_10y.csv")
+    volumes_cache_path = os.path.join("data", "sp100_volumes_10y.csv")
 
     all_universe_tickers = sorted(list(set(SP100_TICKERS + [ETF_PROXY])))
 
@@ -86,12 +87,20 @@ def run_trading_pipeline(
     print(f"      Periodo: {start_date} a {end_date}")
 
     # Cargar de caché local si existe para acelerar ejecuciones
+    prices_df = None
+    volumes_df = None
     if os.path.exists(prices_cache_path) and os.path.exists(volumes_cache_path):
-        print("      Cargando historial desde caché local persistente (data/)...")
-        prices_df = pd.read_csv(prices_cache_path, index_col=0, parse_dates=True)
-        volumes_df = pd.read_csv(volumes_cache_path, index_col=0, parse_dates=True)
-    else:
-        print("      Descargando precios y volúmenes vía Yahoo Finance...")
+        print("      Cargando historial desde caché local persistente (data/sp100_prices_10y.csv)...")
+        loaded_prices = pd.read_csv(prices_cache_path, index_col=0, parse_dates=True)
+        loaded_volumes = pd.read_csv(volumes_cache_path, index_col=0, parse_dates=True)
+        if loaded_prices.index[0].strftime("%Y-%m-%d") <= start_date and loaded_prices.index[-1].strftime("%Y-%m-%d") >= "2025-12-01":
+            prices_df = loaded_prices
+            volumes_df = loaded_volumes
+        else:
+            print("      [!] Caché local no cubre el rango temporal completo. Descargando de nuevo...")
+
+    if prices_df is None or volumes_df is None:
+        print("      Descargando precios y volúmenes a 10 años vía Yahoo Finance...")
         prices_df, volumes_df = EquityDataLoader.load_historical_market_data(
             tickers=all_universe_tickers,
             start_date=start_date,
@@ -99,7 +108,7 @@ def run_trading_pipeline(
         )
         prices_df.to_csv(prices_cache_path)
         volumes_df.to_csv(volumes_cache_path)
-        print("      Datos de mercado guardados en caché local.")
+        print("      Datos de mercado a 10 años guardados en caché local.")
 
     n_bars, n_total_assets = prices_df.shape
     print(f"      Base de datos sincronizada: {n_bars} barras diarias para {n_total_assets} activos.")
@@ -198,6 +207,9 @@ def run_trading_pipeline(
             print("    [!] Advertencia: Menos de 10 activos superaron el filtro de liquidez. Ventana omitida.")
             continue
 
+        # Garantizar historial 100% completo in-sample (descartar activos con NaNs por salidas a bolsa recientes)
+        liquid_assets = [t for t in liquid_assets if is_stock_prices[t].isna().sum() == 0]
+
         # Retornos del periodo de formación
         is_returns = is_stock_prices[liquid_assets].pct_change().dropna()
         if len(is_returns) < 50:
@@ -213,7 +225,7 @@ def run_trading_pipeline(
             continue
 
         k_comp = pca.n_components_
-        cum_var = float(pca.cumulative_variance_ratio_[-1]) if pca.cumulative_variance_ratio_ is not None else 0.0
+        cum_var = float(pca.cumulative_variance_ratio_[k_comp - 1]) if pca.cumulative_variance_ratio_ is not None and k_comp > 0 else 0.0
         print(f"    [PCA] {k_comp} factores extraídos | Varianza explicada: {cum_var:.2%}")
 
         # Extracción y validación econométrica de residuales sintéticos
@@ -367,10 +379,10 @@ def run_trading_pipeline(
     # 4. Exportación y Resumen Final
     print("\n[4/5] Guardando registros cuantitativos...")
 
-    output_csv = "results/walk_forward_pca_sp100_hybrid.csv"
-    output_json = "results/walk_forward_pca_sp100_hybrid.json"
-    trades_csv = "results/trades_pca_sp100_hybrid.csv"
-    candidates_audit_csv = "results/pca_sp100_hybrid_candidates_audit.csv"
+    output_csv = "results/walk_forward_pca_sp100_10years.csv"
+    output_json = "results/walk_forward_pca_sp100_10years.json"
+    trades_csv = "results/trades_pca_sp100_10years.csv"
+    candidates_audit_csv = "results/pca_sp100_10years_candidates_audit.csv"
 
     if summary_records:
         df_summary = pd.DataFrame(summary_records)

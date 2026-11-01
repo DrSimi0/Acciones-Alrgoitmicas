@@ -171,6 +171,24 @@ Este documento registra las decisiones técnicas clave, su contexto y sus justif
   2. Ningún par alcanzó dicho umbral (el menor p-valor fue $0.00051$). El filtro FDR rechazó sistemáticamente el 100% de los pares, concluyendo que en un universo heterogéneo multiclúster (utilities, alimentos, seguros), las correlaciones por distancia no tienen persistencia estacionaria genuina y son artefactos de minería de datos (*data snooping*).
   3. Esto valida el diseño de protección del sistema: frente a universos amplios y diversos, el modelo multivariado PCA (ADR 013) es superior al bivariado por aislar factores sistemáticos de forma global en lugar de forzar cointegraciones artificiales $A$ vs $B$.
 
+---
+
+## ADR 015: Consolidación Oficial de Producción — Estrategia Principal PCA Híbrida a 10 Años (2015–2025)
+* **Fecha:** 2026-11-01
+* **Estado:** Aceptado (Configuración Oficial de Producción)
+* **Contexto:** Se requirió validar la robustez temporal de la configuración híbrida (*The Sweet Spot*) a lo largo de una década completa (2015-01-01 a 2025-12-31) sobre los 100 componentes del S&P 100 más el proxy ETF SPY, cubriendo 2,765 barras diarias y 39 ventanas Walk-Forward trimestrales fuera de muestra (2016 a 2025).
+* **Decisión:**
+  1. Establecer `run_trading_pipeline` en `run_pipeline.py` con parámetros oficiales: `variance_threshold = 0.80`, `max_half_life = 12.0`, `exit_z = 0.75`, `fdr_alpha = 0.05`, `start_date = "2015-01-01"`.
+  2. Implementar un filtro estricto de completitud histórica in-sample (`is_stock_prices[t].isna().sum() == 0`) para evitar que ofertas públicas o escisiones intermedias (ej. `DOW`, `KHC`, `PYPL`) trunquen la matriz de retornos del PCA.
+  3. Almacenar el historial decenal en `data/sp100_prices_10y.csv` y los resultados en `results/walk_forward_pca_sp100_10years.*` y `results/trades_pca_sp100_10years.csv`.
+* **Consecuencias y Desempeño a 10 Años:**
+  - Evaluó 3,745 residuales candidatos en 39 ventanas OOS.
+  - El control FDR protegió al fondo en 25 de las 39 ventanas (64% del tiempo en liquidez al no hallar anomalías estadísticamente genuinas).
+  - En las 14 ventanas activas se ejecutaron 38 operaciones con una duración media de 12.3 días.
+  - El Drawdown máximo de la década se mantuvo estrictamente acotado en -9.54% gracias a la disciplina del Stop-Loss (-8%) y la evacuación de earnings (26.3% de los trades).
+  - Activos destacados como Morgan Stanley (`MS`, +10.73% retorno total, +$12,122 PnL) y Abbott (`ABT`, +6.05% retorno, 100% Win Rate) ratifican la capacidad del modelo para monetizar reversiones idiosincrásicas institucionales.
+
+
 
 
 
