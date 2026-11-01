@@ -86,3 +86,16 @@ Este documento registra las decisiones técnicas clave, su contexto y sus justif
   2. **Evacuación Preventiva (`requires_evacuation`):** Liquidar forzadamente a mercado posiciones abiertas si cualquiera de los activos reporta al día hábil siguiente (`FORCE_EXIT_EARNINGS`).
   3. **Operación en Paralelo:** Coexistencia con el *Hard Stop-Loss* (-8%) y el filtro Kalman de incertidumbre.
 * **Consecuencias:** Eliminación sistemática del riesgo idiosincrásico por gaps de earnings.
+
+---
+
+## ADR 009: Descomposición Multivariada por Factores Estadísticos PCA (Avellaneda & Lee, 2010)
+* **Fecha:** 2026-11-01
+* **Estado:** Aceptado
+* **Contexto:** El enfoque bivariado ($A$ vs $B$) evalúa pares aislados, omitiendo que las correlaciones entre acciones se derivan de factores de riesgo sistemáticos compartidos (mercado general y subsectores). En universos densos, modelar pares individuales genera redundancia y susceptibilidad a falsos descubrimientos.
+* **Decisión:**
+  1. Implementar la clase `PCAFactorModel` en `src/pca_model.py` basada en Avellaneda & Lee (2010), descomponiendo la matriz de correlación empírica en autovectores y autovalores ortonormales en NumPy puro.
+  2. Seleccionar dinámicamente $K$ factores principales para capturar el umbral de riesgo sistemático (`variance_threshold = 0.80`).
+  3. Regresar cada activo contra los $K$ factores mediante OLS simultáneo para extraer la serie de retornos idiosincrásicos $\epsilon_{i,t}$ y el spread sintético acumulado $X_{i,t} = \sum_{s=1}^t \epsilon_{i,s}$.
+  4. Extender `EconometricValidator` en `src/spread.py` con `test_residual_stationarity` (ADF) y `validate_pca_residuals` (ADF + Ornstein-Uhlenbeck + Benjamini-Hochberg FDR al 5%) para validar rigurosamente la reversión de cada residual individual sin minería de datos.
+* **Consecuencias:** Se establece el núcleo matemático para evolucionar de pairs trading a carteras sintéticas neutrales a mercado y a factores.

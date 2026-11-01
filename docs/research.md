@@ -53,3 +53,15 @@ Este archivo documenta las fuentes científicas que sustentan el diseño de la e
   - En la Ventana 12 (diciembre de 2024), el filtro de cuarentena bloqueó la apertura de la posición corta en `AVGO_TSM` antes del salto del +24.6% de Broadcom, permitiendo posteriormente un trade ordenado con convergencia al valor medio (+2.73% de retorno).
   - El peor *drawdown* global se redujo drásticamente de **-12.83% a -2.87%**, y el 100% de los trades ejecutados cerraron por reversión a la media (`mean_reversion`), confirmando que la cuarentena de eventos corporativos es indispensable en arbitraje estadístico accionario.
 
+---
+
+## 8. Avellaneda y Lee (2010): Arbitraje Estadístico Multivariado y Factores PCA
+* **Título:** *Statistical Arbitrage in the U.S. Equities Market*
+* **Publicación:** Quantitative Finance, 10(7), 761–782. DOI: 10.1080/14697688.2010.481638.
+* **Hipótesis:** Las acciones se mueven impulsadas por factores de riesgo comunes (mercado y sectores) y un residuo idiosincrásico. Al aislar dichos factores comunes mediante Componentes Principales (PCA) o ETFs sectoriales, los residuales acumulados exhiben reversión a la media modelable como un proceso continuo Ornstein-Uhlenbeck.
+* **Aplicación al proyecto:**
+  1. Extracción de eigen-carteras ortonormales en `src/pca_model.py` para proyectar el riesgo sistemático de mercado.
+  2. Construcción de spreads sintéticos individuales $X_{i,t} = \sum \epsilon_{i,s}$ neutrales a los factores dominantes.
+  3. Validación de estacionariedad $I(0)$ vía ADF, estimación de vidas medias de reversión $\tau_{1/2} = \frac{\ln 2}{\kappa}$ y control de error de minería de datos mediante FDR Benjamini-Hochberg ($\alpha=0.05$) en `src/spread.py`.
+
+

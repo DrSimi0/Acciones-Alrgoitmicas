@@ -165,16 +165,17 @@ class EconometricValidator:
 
     def filter_fdr_benjamini_hochberg(
         self,
-        pairs_pvalues: Dict[Tuple[str, str], float]
-    ) -> List[Tuple[str, str]]:
+        pairs_pvalues: Dict[Any, float]
+    ) -> List[Any]:
         """
         Control de Tasa de Falso Descubrimiento (FDR) mediante el procedimiento Benjamini-Hochberg.
+        Acepta tanto tuplas de pares (asset_a, asset_b) como identificadores individuales de activos.
 
         Args:
-            pairs_pvalues: Diccionario {(asset_a, asset_b): p_value}.
+            pairs_pvalues: Diccionario {clave_identificadora: p_value}.
 
         Returns:
-            Lista de pares que superan el control FDR.
+            Lista de claves que superan el control FDR.
         """
         if not pairs_pvalues:
             return []
@@ -193,6 +194,117 @@ class EconometricValidator:
 
         valid_pairs = [pair for pair, _ in sorted_pairs[:max_k]]
         return valid_pairs
+
+    def test_residual_stationarity(
+        self,
+        residual_series: pd.Series,
+        maxlag: Optional[int] = None,
+        autolag: Optional[str] = "AIC"
+    ) -> Dict[str, Any]:
+        """
+        Ejecuta la prueba Augmented Dickey-Fuller (ADF) sobre una serie residual individual
+        o spread sintético acumulado (X_it = sum epsilon_is) para contrastar estacionariedad I(0).
+
+        Hipótesis Nula H0: La serie contiene una raíz unitaria (no estacionaria).
+        Hipótesis Alternativa H1: La serie es estacionaria en media.
+
+        Args:
+            residual_series: Serie temporal del residual acumulado.
+            maxlag: Número máximo de rezagos a incluir en el test ADF.
+            autolag: Criterio para selección automática de rezagos ('AIC', 'BIC', 't-stat', None).
+
+        Returns:
+            Dict con estadístico ADF, p-valor, valores críticos, rezagos usados y booleano is_stationary.
+        """
+        clean_s = residual_series.dropna()
+        if len(clean_s) < 10:
+            return {
+                "adf_stat": 0.0,
+                "p_value": 1.0,
+                "crit_values": {"1%": 0.0, "5%": 0.0, "10%": 0.0},
+                "usedlag": 0,
+                "is_stationary": False
+            }
+
+        try:
+            res = adfuller(clean_s.values, maxlag=maxlag, autolag=autolag, result_object=False)
+        except TypeError:
+            # En versiones antiguas de statsmodels sin soporte para result_object
+            res = adfuller(clean_s.values, maxlag=maxlag, autolag=autolag)
+        adf_stat = float(res[0])
+        p_val = float(res[1])
+        usedlag = int(res[2])
+        crit_vals = {k: float(v) for k, v in res[4].items()}
+
+        is_stat = bool(p_val <= self.coint_pvalue_threshold)
+
+        return {
+            "adf_stat": adf_stat,
+            "p_value": p_val,
+            "crit_values": crit_vals,
+            "usedlag": usedlag,
+            "is_stationary": is_stat
+        }
+
+    def validate_pca_residuals(
+        self,
+        residuals_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Valida econométricamente las series acumuladas de residuales idiosincrásicos
+        provenientes del modelo multivariado PCA (Avellaneda & Lee, 2010):
+        1. Test ADF sobre cada activo individual para contrastar estacionariedad I(0).
+        2. Estimación Ornstein-Uhlenbeck (vida media tau_1/2, tasa kappa, volatilidad sigma, theta).
+        3. Control de Tasa de Falso Descubrimiento (FDR Benjamini-Hochberg) sobre los p-valores ADF.
+
+        Args:
+            residuals_df: DataFrame (T x N) donde cada columna es el spread acumulado de un activo (X_it).
+
+        Returns:
+            DataFrame con el diagnóstico econométrico de cada activo y su condición de elegibilidad.
+        """
+        if not isinstance(residuals_df, pd.DataFrame) or residuals_df.empty:
+            return pd.DataFrame()
+
+        records = []
+        p_val_map = {}
+
+        for asset in residuals_df.columns:
+            series = residuals_df[asset]
+            adf_res = self.test_residual_stationarity(series)
+            ou_res = self.fit_ornstein_uhlenbeck(series)
+
+            hl = ou_res["half_life"]
+            is_hl_valid = (self.min_half_life <= hl <= self.max_half_life)
+
+            records.append({
+                "asset": str(asset),
+                "adf_stat": adf_res["adf_stat"],
+                "p_value": adf_res["p_value"],
+                "is_stationary": adf_res["is_stationary"],
+                "kappa": ou_res["kappa"],
+                "half_life": hl,
+                "sigma": ou_res["sigma"],
+                "theta": ou_res["theta"],
+                "r2_ou": ou_res["r2"],
+                "is_half_life_valid": is_hl_valid
+            })
+            p_val_map[str(asset)] = adf_res["p_value"]
+
+        df_out = pd.DataFrame(records)
+
+        # Aplicar Benjamini-Hochberg sobre los activos individuales
+        approved_assets = set(self.filter_fdr_benjamini_hochberg(p_val_map))
+        df_out["fdr_approved"] = df_out["asset"].isin(approved_assets)
+
+        # Criterio de elegibilidad multivariada: Estacionario + Vida media admisible + FDR aprobado
+        df_out["is_valid_residual"] = (
+            df_out["is_stationary"] &
+            df_out["is_half_life_valid"] &
+            df_out["fdr_approved"]
+        )
+
+        return df_out.sort_values(by="p_value", ascending=True).reset_index(drop=True)
 
     def validate_candidate_pairs(
         self,
