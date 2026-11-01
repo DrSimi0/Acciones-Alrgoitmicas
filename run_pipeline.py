@@ -62,7 +62,8 @@ def run_trading_pipeline(
     coint_pvalue_threshold: float = 0.05,
     max_half_life: float = 12.0,
     exit_z: float = 0.75,
-    fdr_alpha: float = 0.05
+    fdr_alpha: float = 0.05,
+    output_prefix: str = "pca_sp100_10years"
 ) -> None:
     """
     Pipeline de Producción Multivariado PCA con Ejecución Sintética Market-Neutral (Long/Short vs SPY).
@@ -94,8 +95,8 @@ def run_trading_pipeline(
         loaded_prices = pd.read_csv(prices_cache_path, index_col=0, parse_dates=True)
         loaded_volumes = pd.read_csv(volumes_cache_path, index_col=0, parse_dates=True)
         if loaded_prices.index[0].strftime("%Y-%m-%d") <= start_date and loaded_prices.index[-1].strftime("%Y-%m-%d") >= "2025-12-01":
-            prices_df = loaded_prices
-            volumes_df = loaded_volumes
+            prices_df = loaded_prices.loc[start_date:end_date].copy()
+            volumes_df = loaded_volumes.loc[start_date:end_date].copy()
         else:
             print("      [!] Caché local no cubre el rango temporal completo. Descargando de nuevo...")
 
@@ -379,10 +380,10 @@ def run_trading_pipeline(
     # 4. Exportación y Resumen Final
     print("\n[4/5] Guardando registros cuantitativos...")
 
-    output_csv = "results/walk_forward_pca_sp100_10years.csv"
-    output_json = "results/walk_forward_pca_sp100_10years.json"
-    trades_csv = "results/trades_pca_sp100_10years.csv"
-    candidates_audit_csv = "results/pca_sp100_10years_candidates_audit.csv"
+    output_csv = f"results/walk_forward_{output_prefix}.csv"
+    output_json = f"results/walk_forward_{output_prefix}.json"
+    trades_csv = f"results/trades_{output_prefix}.csv"
+    candidates_audit_csv = f"results/{output_prefix}_candidates_audit.csv"
 
     if summary_records:
         df_summary = pd.DataFrame(summary_records)
