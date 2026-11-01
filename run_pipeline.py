@@ -58,9 +58,10 @@ def run_trading_pipeline(
     end_date: str = "2025-12-31",
     min_adtv: float = 50_000_000.0,
     min_price: float = 10.0,
-    variance_threshold: float = 0.80,
+    variance_threshold: float = 0.87,
     coint_pvalue_threshold: float = 0.05,
-    max_half_life: float = 30.0,
+    max_half_life: float = 12.0,
+    exit_z: float = 0.75,
     fdr_alpha: float = 0.05
 ) -> None:
     """
@@ -129,7 +130,7 @@ def run_trading_pipeline(
     )
     signal_gen = SignalGenerator(
         base_entry_z=2.0,
-        exit_z=0.5,
+        exit_z=exit_z,
         max_half_life_multiplier=3.0,
         min_correlation_threshold=0.10,
         elastic_volatility=True
@@ -366,10 +367,10 @@ def run_trading_pipeline(
     # 4. Exportación y Resumen Final
     print("\n[4/5] Guardando registros cuantitativos...")
 
-    output_csv = "results/walk_forward_pca_sp100_LS.csv"
-    output_json = "results/walk_forward_pca_sp100_LS.json"
-    trades_csv = "results/trades_pca_sp100_LS.csv"
-    candidates_audit_csv = "results/pca_sp100_candidates_audit.csv"
+    output_csv = "results/walk_forward_pca_sp100_optimized.csv"
+    output_json = "results/walk_forward_pca_sp100_optimized.json"
+    trades_csv = "results/trades_pca_sp100_optimized.csv"
+    candidates_audit_csv = "results/pca_sp100_optimized_candidates_audit.csv"
 
     if summary_records:
         df_summary = pd.DataFrame(summary_records)

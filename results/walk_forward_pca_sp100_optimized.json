@@ -1,0 +1,287 @@
+[
+  {
+    "window": 1,
+    "in_sample_range": [
+      "2021-01-04",
+      "2021-12-31"
+    ],
+    "out_of_sample_range": [
+      "2022-01-03",
+      "2022-04-01"
+    ],
+    "liquid_assets": 98,
+    "k_components": 39,
+    "variance_explained": 1.0,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 2,
+    "in_sample_range": [
+      "2021-04-06",
+      "2022-04-01"
+    ],
+    "out_of_sample_range": [
+      "2022-04-04",
+      "2022-07-05"
+    ],
+    "liquid_assets": 98,
+    "k_components": 38,
+    "variance_explained": 0.9999999999999999,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 3,
+    "in_sample_range": [
+      "2021-07-06",
+      "2022-07-05"
+    ],
+    "out_of_sample_range": [
+      "2022-07-06",
+      "2022-10-03"
+    ],
+    "liquid_assets": 97,
+    "k_components": 35,
+    "variance_explained": 1.0,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 4,
+    "in_sample_range": [
+      "2021-10-04",
+      "2022-10-03"
+    ],
+    "out_of_sample_range": [
+      "2022-10-04",
+      "2023-01-03"
+    ],
+    "liquid_assets": 97,
+    "k_components": 33,
+    "variance_explained": 0.9999999999999999,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 5,
+    "in_sample_range": [
+      "2022-01-03",
+      "2023-01-03"
+    ],
+    "out_of_sample_range": [
+      "2023-01-04",
+      "2023-04-04"
+    ],
+    "liquid_assets": 97,
+    "k_components": 32,
+    "variance_explained": 0.9999999999999992,
+    "approved_assets": 1,
+    "trades_count": 2,
+    "net_return": -0.04405252592726672,
+    "sharpe": -1.1787389685084086,
+    "max_drawdown": -0.06654578491343593
+  },
+  {
+    "window": 6,
+    "in_sample_range": [
+      "2022-04-04",
+      "2023-04-04"
+    ],
+    "out_of_sample_range": [
+      "2023-04-05",
+      "2023-07-06"
+    ],
+    "liquid_assets": 98,
+    "k_components": 32,
+    "variance_explained": 1.0,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 7,
+    "in_sample_range": [
+      "2022-07-06",
+      "2023-07-06"
+    ],
+    "out_of_sample_range": [
+      "2023-07-07",
+      "2023-10-04"
+    ],
+    "liquid_assets": 98,
+    "k_components": 36,
+    "variance_explained": 1.0000000000000004,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 8,
+    "in_sample_range": [
+      "2022-10-04",
+      "2023-10-04"
+    ],
+    "out_of_sample_range": [
+      "2023-10-05",
+      "2024-01-04"
+    ],
+    "liquid_assets": 97,
+    "k_components": 40,
+    "variance_explained": 1.0000000000000002,
+    "approved_assets": 3,
+    "trades_count": 6,
+    "net_return": -0.09485818507578654,
+    "sharpe": -2.935530097909995,
+    "max_drawdown": -0.14293015055999794
+  },
+  {
+    "window": 9,
+    "in_sample_range": [
+      "2023-01-04",
+      "2024-01-04"
+    ],
+    "out_of_sample_range": [
+      "2024-01-05",
+      "2024-04-05"
+    ],
+    "liquid_assets": 97,
+    "k_components": 43,
+    "variance_explained": 0.9999999999999999,
+    "approved_assets": 4,
+    "trades_count": 5,
+    "net_return": 0.004841723858673264,
+    "sharpe": 0.1427820027459447,
+    "max_drawdown": -0.04525684512878855
+  },
+  {
+    "window": 10,
+    "in_sample_range": [
+      "2023-04-05",
+      "2024-04-05"
+    ],
+    "out_of_sample_range": [
+      "2024-04-08",
+      "2024-07-08"
+    ],
+    "liquid_assets": 98,
+    "k_components": 45,
+    "variance_explained": 1.0000000000000004,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 11,
+    "in_sample_range": [
+      "2023-07-07",
+      "2024-07-08"
+    ],
+    "out_of_sample_range": [
+      "2024-07-09",
+      "2024-10-04"
+    ],
+    "liquid_assets": 98,
+    "k_components": 47,
+    "variance_explained": 0.9999999999999994,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 12,
+    "in_sample_range": [
+      "2023-10-05",
+      "2024-10-04"
+    ],
+    "out_of_sample_range": [
+      "2024-10-07",
+      "2025-01-06"
+    ],
+    "liquid_assets": 97,
+    "k_components": 46,
+    "variance_explained": 1.0000000000000002,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 13,
+    "in_sample_range": [
+      "2024-01-05",
+      "2025-01-06"
+    ],
+    "out_of_sample_range": [
+      "2025-01-07",
+      "2025-04-08"
+    ],
+    "liquid_assets": 97,
+    "k_components": 46,
+    "variance_explained": 0.9999999999999997,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 14,
+    "in_sample_range": [
+      "2024-04-08",
+      "2025-04-08"
+    ],
+    "out_of_sample_range": [
+      "2025-04-09",
+      "2025-07-10"
+    ],
+    "liquid_assets": 97,
+    "k_components": 42,
+    "variance_explained": 0.9999999999999999,
+    "approved_assets": 1,
+    "trades_count": 2,
+    "net_return": -0.034603383564450474,
+    "sharpe": -1.124254907934507,
+    "max_drawdown": -0.06781924746166773
+  },
+  {
+    "window": 15,
+    "in_sample_range": [
+      "2024-07-09",
+      "2025-07-10"
+    ],
+    "out_of_sample_range": [
+      "2025-07-11",
+      "2025-10-08"
+    ],
+    "liquid_assets": 98,
+    "k_components": 38,
+    "variance_explained": 0.9999999999999996,
+    "approved_assets": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  }
+]

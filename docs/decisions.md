@@ -130,3 +130,17 @@ Este documento registra las decisiones técnicas clave, su contexto y sus justif
   5. **Orquestación Central:** Establecer `run_trading_pipeline()` como el flujo por defecto de `run_pipeline.py`.
 * **Consecuencias:** Cobertura market-neutral estricta frente a factores macroeconómicos, diversificación transversal a través del S&P 100 y mitigación matemática de minería de datos mediante FDR.
 
+---
+
+## ADR 012: Optimización de Hiperparámetros de Rotación y Pureza en el Pipeline PCA
+* **Fecha:** 2026-11-01
+* **Estado:** Aceptado
+* **Contexto:** En la configuración base del pipeline PCA S&P 100 (ADR 011), el 33.3% de las operaciones cerraban por vencimiento de ventana trimestral (`end_of_period`) y el 27.8% por timeout de vida media (`stop_half_life`), denotando una permanencia excesiva que acumulaba fricciones y comisiones de préstamo de cortos (*short-borrow fees*).
+* **Decisión:**
+  1. **Pureza Residual:** Elevar `variance_threshold` de `0.80` a `0.87` en `PCAFactorModel` para aislar un ruido idiosincrásico más reactivo frente a factores macro.
+  2. **Velocidad de Reversión:** Reducir `max_half_life` de `30.0` a `12.0` días en `EconometricValidator`, descartando de forma estricta series con tendencia al letargo.
+  3. **Toma de Ganancias Anticipada:** Ajustar `exit_z` de `0.50` a `0.75` en `SignalGenerator` para capturar la parte vertical de la reversión a la media.
+  4. **Exportación Segregada:** Guardar resultados en `results/*_optimized.csv` y `.json`.
+* **Consecuencias:** Se eliminaron casi por completo las posiciones atrapadas al cierre del trimestre (reducción de `end_of_period` del 33.3% al 6.7%) y los timeouts de vida media cayeron del 27.8% al 13.3%, elevando la tasa de salidas limpias por reversión a la media al 40.0%. No obstante, extraer hasta 47 factores PCA provocó sobreajuste in-sample, incrementando la dispersión en los periodos de divergencia estructural de 2023.
+
+

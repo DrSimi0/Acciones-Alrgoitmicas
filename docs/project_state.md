@@ -69,6 +69,24 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
     - `GOOGL` (Ventana 13, feb 2025): **+8.59%** neto (+$9,446.11)
     - `GE` (Ventana 1, mar 2022): **+5.05%** neto (+$5,617.79)
 
+### Comparativa: Configuración Base vs Optimizada (Arbitraje Estadístico PCA S&P 100):
+
+| Métrica Cuantitativa | Configuración Base (ADR 011) | Configuración Optimizada (ADR 012) | Impacto / Hallazgo |
+| :--- | :---: | :---: | :---: |
+| **`variance_threshold` / `max_half_life` / `exit_z`** | 0.80 / 30.0d / 0.50 | **0.87 / 12.0d / 0.75** | Parámetros más reactivos |
+| **Operaciones Totales (15 Ventanas OOS)** | 18 trades | **15 trades** | Mayor selectividad econométrica |
+| **Trades cerrados por `mean_reversion`** | 4 (22.2%) | **6 (40.0%)** | **+17.8% de reversiones directas** |
+| **Trades cerrados por `stop_half_life`** | 5 (27.8%) | **2 (13.3%)** | **-14.5% de salidas por timeout** |
+| **Trades cerrados por `end_of_period`** | 6 (33.3%) | **1 (6.7%)** | **-26.6% de posiciones atrapadas** |
+| **Trades evacuados por Earnings** | 2 (11.1%) | **5 (33.3%)** | Disciplina de riesgo activa |
+| **Trades cerrados por `stop_loss_8pct`** | 1 (5.6%) | **1 (6.7%)** | Control de pérdidas idéntico |
+| **Retorno Neto Medio por Ventana** | -0.10% | **-4.22%** | Dispersión residual concentrada |
+| **Ratio de Sharpe Medio OOS** | -0.03 | **-1.27** | Impacto de sobreajuste dimensional |
+| **Peor Drawdown Registrado** | -10.38% | **-14.29%** | Aumento moderado de volatilidad |
+| **Tasa de Acierto (Win Rate)** | 44.4% | **26.7%** | Reducción por falsos quiebres |
+
+---
+
 ### Comparativa: Pre vs Post Filtro de Calendario Corporativo (Earnings Blackout):
 
 | Métrica Global | Pre-Filtro de Calendario | Post-Filtro de Calendario (Producción) | Impacto / Mejora |
