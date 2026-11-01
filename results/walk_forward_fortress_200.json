@@ -1,0 +1,257 @@
+[
+  {
+    "window": 1,
+    "in_sample_range": [
+      "2021-01-04",
+      "2021-12-31"
+    ],
+    "out_of_sample_range": [
+      "2022-01-03",
+      "2022-04-01"
+    ],
+    "candidates_evaluated": 200,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 2,
+    "in_sample_range": [
+      "2021-04-06",
+      "2022-04-01"
+    ],
+    "out_of_sample_range": [
+      "2022-04-04",
+      "2022-07-05"
+    ],
+    "candidates_evaluated": 127,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 3,
+    "in_sample_range": [
+      "2021-07-06",
+      "2022-07-05"
+    ],
+    "out_of_sample_range": [
+      "2022-07-06",
+      "2022-10-03"
+    ],
+    "candidates_evaluated": 149,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 4,
+    "in_sample_range": [
+      "2021-10-04",
+      "2022-10-03"
+    ],
+    "out_of_sample_range": [
+      "2022-10-04",
+      "2023-01-03"
+    ],
+    "candidates_evaluated": 147,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 5,
+    "in_sample_range": [
+      "2022-01-03",
+      "2023-01-03"
+    ],
+    "out_of_sample_range": [
+      "2023-01-04",
+      "2023-04-04"
+    ],
+    "candidates_evaluated": 123,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 6,
+    "in_sample_range": [
+      "2022-04-04",
+      "2023-04-04"
+    ],
+    "out_of_sample_range": [
+      "2023-04-05",
+      "2023-07-06"
+    ],
+    "candidates_evaluated": 140,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 7,
+    "in_sample_range": [
+      "2022-07-06",
+      "2023-07-06"
+    ],
+    "out_of_sample_range": [
+      "2023-07-07",
+      "2023-10-04"
+    ],
+    "candidates_evaluated": 139,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 8,
+    "in_sample_range": [
+      "2022-10-04",
+      "2023-10-04"
+    ],
+    "out_of_sample_range": [
+      "2023-10-05",
+      "2024-01-04"
+    ],
+    "candidates_evaluated": 156,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 9,
+    "in_sample_range": [
+      "2023-01-04",
+      "2024-01-04"
+    ],
+    "out_of_sample_range": [
+      "2024-01-05",
+      "2024-04-05"
+    ],
+    "candidates_evaluated": 146,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 10,
+    "in_sample_range": [
+      "2023-04-05",
+      "2024-04-05"
+    ],
+    "out_of_sample_range": [
+      "2024-04-08",
+      "2024-07-08"
+    ],
+    "candidates_evaluated": 157,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 11,
+    "in_sample_range": [
+      "2023-07-07",
+      "2024-07-08"
+    ],
+    "out_of_sample_range": [
+      "2024-07-09",
+      "2024-10-04"
+    ],
+    "candidates_evaluated": 163,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 12,
+    "in_sample_range": [
+      "2023-10-05",
+      "2024-10-04"
+    ],
+    "out_of_sample_range": [
+      "2024-10-07",
+      "2025-01-06"
+    ],
+    "candidates_evaluated": 200,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 13,
+    "in_sample_range": [
+      "2024-01-05",
+      "2025-01-06"
+    ],
+    "out_of_sample_range": [
+      "2025-01-07",
+      "2025-04-08"
+    ],
+    "candidates_evaluated": 195,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 14,
+    "in_sample_range": [
+      "2024-04-08",
+      "2025-04-08"
+    ],
+    "out_of_sample_range": [
+      "2025-04-09",
+      "2025-07-10"
+    ],
+    "candidates_evaluated": 157,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  },
+  {
+    "window": 15,
+    "in_sample_range": [
+      "2024-07-09",
+      "2025-07-10"
+    ],
+    "out_of_sample_range": [
+      "2025-07-11",
+      "2025-10-08"
+    ],
+    "candidates_evaluated": 111,
+    "cointegrated_pairs": 0,
+    "trades_count": 0,
+    "net_return": 0.0,
+    "sharpe": 0.0,
+    "max_drawdown": 0.0
+  }
+]

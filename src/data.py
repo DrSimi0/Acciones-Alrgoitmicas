@@ -260,6 +260,8 @@ class EquityDataLoader:
 
         # Limpiar zona horaria para compatibilidad uniforme
         prices.index = pd.to_datetime(prices.index).tz_localize(None)
+        # Descartar columnas completamente nulas (ej. tickers delistados o no encontrados)
+        prices = prices.dropna(axis=1, how="all")
         # Relleno hacia adelante limitado y eliminación de NaNs residuales
         prices = prices.ffill().dropna()
 

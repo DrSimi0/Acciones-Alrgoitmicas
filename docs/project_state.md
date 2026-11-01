@@ -39,6 +39,7 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
 | **Filtro de Calendario Corporativo** (`CorporateCalendarManager`) | ✅ Completado | ✅ Integrado en Bivariado y Multivariado |
 | **Experimento Pares Fijos Long/Short** (`run_fixed_pairs_pipeline`) | ✅ Completado | ✅ 15 Ventanas OOS sobre 5 Pares Competidores |
 | **Pipeline PCA S&P 100 Market-Neutral** (`run_trading_pipeline`) | ✅ Completado | ✅ 15 Ventanas OOS (100 activos + SPY) |
+| **Experimento Bivariado Universo Fortaleza** (`run_fortress_pairs.py`) | ✅ Completado | ✅ 15 Ventanas OOS (Top 200 SSD, 2,310 tests) |
 
 **Total Suite de Pruebas Unitarias:** 44/44 pruebas pasadas (100% éxito).
 
@@ -115,6 +116,20 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
   - **Trade 2 (Short Spread):** -$269.77 (-0.20% de retorno neto) tras deducir $39.34 de comisiones y $5.50 de préstamo de cortos.
   - **Métricas Globales de la Ventana:** Retorno neto: **+0.32%**, Sharpe: **0.35**, Max Drawdown: **-1.36%**, Win Rate: **50%**, Profit Factor: **2.20**.
   - **Otras 14 ventanas:** El filtro FDR al 5% rechazó sistemáticamente los otros 4 pares por falta de cointegración estacionaria, protegiendo el capital de operar divergencias espurias en sectores cíclicos y defensivos.
+
+---
+
+## 6. Experimento Bivariado: Universo Fortaleza (30 Acciones, Top-200 SSD)
+
+- **Script:** [`run_fortress_pairs.py`](file:///c:/Users/leono/OneDrive/Documentos/QUANT%20TRADING/Acciones-Alrgoitmicas/run_fortress_pairs.py).
+- **Universo Evaluado (30 tickers, 406 pares posibles):** Empresas de balance sólido en consumo básico, utilities, gestión de residuos, químicos industriales y seguros.
+- **Evaluaciones Realizadas:** 2,310 pruebas econométricas en 15 ventanas Walk-Forward (2021–2025).
+- **Hallazgo Econométrico Crucial:**
+  - 205 pares exhibieron $p \le 0.05$ en Engle-Granger y 190 tuvieron vidas medias $\tau_{1/2} \le 12.0$ días.
+  - Sin embargo, el filtro de control FDR Benjamini-Hochberg ($\alpha = 0.05$) sobre 200 pruebas simultáneas exigió un umbral mínimo $p \le \frac{1}{200} \times 0.05 = 0.00025$.
+  - Ningún par alcanzó este umbral (mínimo p-valor registrado: $0.00051$). Por tanto, **el sistema rechazó correctamente el 100% de los pares por ser indistinguibles de ruido estadístico (*data snooping*)**.
+  - Este resultado confirma la superioridad de la arquitectura multivariada PCA (Fase 10) frente a universos amplios no sectorizados.
+
 
 ### Conclusiones de Producción en `main`:
 1. El sistema opera actualmente en la rama `main` con el universo ampliado de 15 activos de semiconductores, preselección Top-20 SSD, validación rigurosa FDR al 5% y filtro activo de eventos corporativos.

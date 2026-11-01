@@ -308,8 +308,9 @@ class EconometricValidator:
 
     def validate_candidate_pairs(
         self,
-        formation_prices: pd.DataFrame,
-        candidate_pairs: List[Tuple[str, str]]
+        formation_prices: Optional[pd.DataFrame] = None,
+        candidate_pairs: Optional[List[Tuple[str, str]]] = None,
+        prices_df: Optional[pd.DataFrame] = None
     ) -> pd.DataFrame:
         """
         Pipeline completo de Validación Econométrica (Fase 2 del Embudo):
@@ -318,12 +319,17 @@ class EconometricValidator:
         3. Control FDR Benjamini-Hochberg sobre los pares pre-aprobados.
 
         Args:
-            formation_prices: Precios de formación de los activos.
+            formation_prices: Precios de formación de los activos (o alias prices_df).
             candidate_pairs: Lista de tuplas (asset_a, asset_b) provenientes del Top-K de SSD.
+            prices_df: Alias de compatibilidad para formation_prices.
 
         Returns:
             DataFrame con pares validados y sus parámetros econométricos.
         """
+        if formation_prices is None and prices_df is not None:
+            formation_prices = prices_df
+        if formation_prices is None or candidate_pairs is None:
+            return pd.DataFrame()
         results = []
         p_val_map = {}
 

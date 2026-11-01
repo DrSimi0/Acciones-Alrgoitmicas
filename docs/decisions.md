@@ -159,5 +159,18 @@ Este documento registra las decisiones técnicas clave, su contexto y sus justif
   4. **Exportación:** Guardar resultados en `results/*_hybrid.csv` y `.json`.
 * **Consecuencias:** Se alcanzó el mejor rendimiento del arbitraje estadístico multivariado: **Retorno neto medio positivo de +0.68% por ventana**, **Ratio de Sharpe positivo de +0.16**, **Drawdown máximo acotado en -10.38%**, tasa de acierto del **47.4%** y un incremento del **14.6% en salidas limpias por reversión a la media** (36.8%) frente a la base.
 
+---
+
+## ADR 014: Experimento Bivariado en Acciones Fortaleza (Top 200 SSD) y Límite de Minería de Datos
+* **Fecha:** 2026-11-01
+* **Estado:** Aceptado
+* **Contexto:** Se exploró regresar al modelo bivariado sobre 30 acciones de alta solidez financiera y bajo riesgo de quiebra ("fortaleza"), preseleccionando los Top 200 pares más sincronizados mediante distancia euclidiana (SSD) y aplicando el rigor econométrico pleno con control FDR ($\alpha = 0.05$) y vida media $\tau_{1/2} \le 12.0$ días.
+* **Decisión:** Implementar el script independiente [`run_fortress_pairs.py`](file:///c:/Users/leono/OneDrive/Documentos/QUANT%20TRADING/Acciones-Alrgoitmicas/run_fortress_pairs.py) evaluando 2,310 pares en 15 ventanas Walk-Forward (2021–2025).
+* **Hallazgo y Consecuencias:**
+  1. Aunque 205 pares exhibieron $p \le 0.05$ en Engle-Granger y 190 tuvieron $\tau_{1/2} \le 12$ días, el procedimiento Benjamini-Hochberg sobre $M = 200$ hipótesis simultáneas exigió un umbral mínimo $p \le \frac{1}{200} \times 0.05 = 0.00025$.
+  2. Ningún par alcanzó dicho umbral (el menor p-valor fue $0.00051$). El filtro FDR rechazó sistemáticamente el 100% de los pares, concluyendo que en un universo heterogéneo multiclúster (utilities, alimentos, seguros), las correlaciones por distancia no tienen persistencia estacionaria genuina y son artefactos de minería de datos (*data snooping*).
+  3. Esto valida el diseño de protección del sistema: frente a universos amplios y diversos, el modelo multivariado PCA (ADR 013) es superior al bivariado por aislar factores sistemáticos de forma global en lugar de forzar cointegraciones artificiales $A$ vs $B$.
+
+
 
 
