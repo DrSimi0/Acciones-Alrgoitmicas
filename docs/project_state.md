@@ -121,7 +121,7 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
 
 ## 6. Experimento Bivariado: Universo Fortaleza (30 Acciones, Top-200 SSD)
 
-- **Script:** [`run_fortress_pairs.py`](file:///c:/Users/leono/OneDrive/Documentos/QUANT%20TRADING/Acciones-Alrgoitmicas/run_fortress_pairs.py).
+- **Script:** [`run_fortress_pairs.py`](../run_fortress_pairs.py).
 - **Universo Evaluado (30 tickers, 406 pares posibles):** Empresas de balance sólido en consumo básico, utilities, gestión de residuos, químicos industriales y seguros.
 - **Evaluaciones Realizadas:** 2,310 pruebas econométricas en 15 ventanas Walk-Forward (2021–2025).
 - **Hallazgo Econométrico Crucial:**
@@ -148,6 +148,6 @@ Desarrollar un sistema modular, reproducible y riguroso para investigar estrateg
     - Morgan Stanley (`MS`): 3 trades, 66.7% Win Rate, Retorno Total: +10.73%, PnL Neto: +$12,122.12.
     - Abbott (`ABT`): 2 trades, 100.0% Win Rate, Retorno Total: +6.05%, PnL Neto: +$6,765.92.
     - NextEra Energy (`NEE`): 2 trades, 100.0% Win Rate, Retorno Total: +4.21%, PnL Neto: +$4,683.05.
-- **Estado de Producción:** [`run_pipeline.py`](file:///c:/Users/leono/OneDrive/Documentos/QUANT%20TRADING/Acciones-Alrgoitmicas/run_pipeline.py) consolidado como la **Estrategia Principal Oficial de Producción**.
+- **Estado de Producción:** [`run_pipeline.py`](../run_pipeline.py) consolidado como la **Estrategia Principal Oficial de Producción**.
 
 
